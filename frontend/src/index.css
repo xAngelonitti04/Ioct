@@ -1,0 +1,32 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #16213e;
+  transition: width 0.3s ease;
+}
+
+.sidebar.closed {
+  width: 0px;
+}
+
+.sidebar-inner {
+  width: 300px;
+  height: 100%;
+  overflow-y: auto;
+}
