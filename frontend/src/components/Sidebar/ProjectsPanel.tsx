@@ -105,7 +105,6 @@ export function ProjectsPanel({ currentProject, models, onSelectProject, onImpor
       scene_objects: p.project_id === currentProject?.project_id
         ? models.map(m => ({
             glb_filename: m.glb_filename,
-            glb_base64: m.glb_base64,
             pos_x: m.config.position[0],
             pos_y: m.config.position[1],
             pos_z: m.config.position[2],
