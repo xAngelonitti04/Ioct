@@ -34,6 +34,7 @@ export interface SceneModel {
   url: string
   glb_filename?: string
   scene_object_id?: number
+  asset_id?: number
   config: ModelConfig
   node?: IoCtNode
 }
@@ -44,9 +45,10 @@ export async function loadProjectModels(project: Project): Promise<SceneModel[]>
     const objects = await res.json()
     if (!Array.isArray(objects) || objects.length === 0) return []
     return objects.map((obj: any) => ({
-      url: `/models/${project.project_id}/${obj.glb_filename}`,
+      url: `/models/${project.project_id}/${obj.glb_filename}?t=${Date.now()}`,
       glb_filename: obj.glb_filename,
       scene_object_id: obj.scene_object_id,
+      asset_id: obj.asset_id,
       config: {
         position: [obj.pos_x ?? 0, obj.pos_y ?? 0, obj.pos_z ?? 0] as [number, number, number],
         rotation: [obj.rot_x ?? 0, obj.rot_y ?? 0, obj.rot_z ?? 0] as [number, number, number],
@@ -68,8 +70,10 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(300)
   const [models, setModels] = useState<SceneModel[]>([])
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [pendingAssetId, setPendingAssetId] = useState<number | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [selectedModelIndex, setSelectedModelIndex] = useState<number | null>(null)
+  const [sceneKey, setSceneKey] = useState(0)
   const isDragging = useRef(false)
 
   const fetchAssets = useAppStore((s: any) => s.fetchAssets)
@@ -93,22 +97,25 @@ function App() {
     setActiveTab(tab)
   }
 
-  const handleSelectProject = async (project: Project) => {
-    setCurrentProject(project)
+  const handleChangeProject = () => {
     setModels([])
     setSelectedModelIndex(null)
+    setSceneKey(prev => prev + 1)
+    setCurrentProject(null)
+  }
+
+  const handleSelectProject = async (project: Project) => {
+    setModels([])
+    setSelectedModelIndex(null)
+    setSceneKey(prev => prev + 1)
+    setCurrentProject(project)
     const loaded = await loadProjectModels(project)
     setModels(loaded)
   }
 
-  const handleChangeProject = () => {
-    setCurrentProject(null)
-    setModels([])
-    setSelectedModelIndex(null)
-  }
-
-  const handleModelUpload = (file: File) => {
+  const handleLoadGlb = (file: File, assetId: number) => {
     setPendingFile(file)
+    setPendingAssetId(assetId)
   }
 
   const handleDeleteModel = async (index: number) => {
@@ -118,6 +125,36 @@ function App() {
     }
     setModels(prev => prev.filter((_, i) => i !== index))
     setSelectedModelIndex(null)
+  }
+
+  const handleUpdatePosition = async (
+    index: number,
+    position: [number, number, number],
+    rotation: [number, number, number],
+    scale: [number, number, number]
+  ) => {
+    const model = models[index]
+    if (!model.scene_object_id) return
+
+    await fetch(`/api/scene-objects/${model.scene_object_id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pos_x: position[0],
+        pos_y: position[1],
+        pos_z: position[2],
+        rot_x: rotation[0],
+        rot_y: rotation[1],
+        rot_z: rotation[2],
+        scale_x: scale[0],
+        scale_y: scale[1],
+        scale_z: scale[2],
+      }),
+    })
+
+    setModels(prev => prev.map((m, i) =>
+      i === index ? { ...m, config: { position, rotation, scale } } : m
+    ))
   }
 
   const handleAddNode = (modelIndex: number, node: IoCtNode) => {
@@ -132,7 +169,6 @@ function App() {
       try {
         const data = JSON.parse(e.target?.result as string)
         const project = data.project
-
         const res = await fetch('/api/projects/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -145,9 +181,7 @@ function App() {
           }),
         })
         const newProject = await res.json()
-        setCurrentProject(newProject)
-        const loaded = await loadProjectModels(newProject)
-        setModels(loaded)
+        await handleSelectProject(newProject)
       } catch (err) {
         console.error('Errore importazione:', err)
       }
@@ -175,6 +209,7 @@ function App() {
     if (!file) return
     if (!file.name.endsWith('.glb') && !file.name.endsWith('.gltf')) return
     setPendingFile(file)
+    setPendingAssetId(null)
   }
 
   const onMouseDown = useCallback(() => {
@@ -220,7 +255,6 @@ function App() {
         <Navbar
           activeTab={activeTab}
           onTabChange={handleTabChange}
-          onModelUpload={handleModelUpload}
           currentProject={currentProject}
           onChangeProject={handleChangeProject}
           models={models}
@@ -230,10 +264,13 @@ function App() {
 
           <div style={{ position: 'absolute', inset: 0 }}>
             <Scene3D
+              key={sceneKey}
               models={models}
               onDelete={handleDeleteModel}
               activeTab={activeTab}
               onSelectModel={setSelectedModelIndex}
+              onUpdatePosition={handleUpdatePosition}
+              selectedModelIndex={selectedModelIndex}
             />
           </div>
 
@@ -270,6 +307,8 @@ function App() {
               models={models}
               onSelectProject={handleSelectProject}
               onImportProject={handleImportProject}
+              onSelectModel={setSelectedModelIndex}
+              onLoadGlb={handleLoadGlb}
             />
           </div>
 
@@ -331,39 +370,62 @@ function App() {
                 })
                 const { filename } = await uploadRes.json()
 
-                const res = await fetch('/api/scene-objects/', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    glb_filename: filename,
-                    project_id: currentProject?.project_id,
-                    pos_x: config.position[0],
-                    pos_y: config.position[1],
-                    pos_z: config.position[2],
-                    rot_x: config.rotation[0],
-                    rot_y: config.rotation[1],
-                    rot_z: config.rotation[2],
-                    scale_x: config.scale[0],
-                    scale_y: config.scale[1],
-                    scale_z: config.scale[2],
-                  }),
-                })
-                const saved = await res.json()
+                const existingModel = pendingAssetId !== null
+                  ? models.find(m => m.asset_id === pendingAssetId)
+                  : null
 
-                setModels(prev => [...prev, {
-                  url: `/models/${currentProject?.project_id}/${filename}`,
-                  glb_filename: filename,
-                  scene_object_id: saved.scene_object_id,
-                  config,
-                }])
+                if (existingModel?.scene_object_id) {
+                  await fetch(`/api/scene-objects/${existingModel.scene_object_id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ glb_filename: filename }),
+                  })
+                  setModels(prev => prev.map(m =>
+                    m.scene_object_id === existingModel.scene_object_id
+                      ? { ...m, url: `/models/${currentProject?.project_id}/${filename}?t=${Date.now()}`, glb_filename: filename }
+                      : m
+                  ))
+                } else {
+                  const res = await fetch('/api/scene-objects/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      glb_filename: filename,
+                      project_id: currentProject?.project_id,
+                      asset_id: pendingAssetId,
+                      pos_x: config.position[0],
+                      pos_y: config.position[1],
+                      pos_z: config.position[2],
+                      rot_x: config.rotation[0],
+                      rot_y: config.rotation[1],
+                      rot_z: config.rotation[2],
+                      scale_x: config.scale[0],
+                      scale_y: config.scale[1],
+                      scale_z: config.scale[2],
+                    }),
+                  })
+                  const saved = await res.json()
+                  setModels(prev => [...prev, {
+                    url: `/models/${currentProject?.project_id}/${filename}?t=${Date.now()}`,
+                    glb_filename: filename,
+                    scene_object_id: saved.scene_object_id,
+                    asset_id: pendingAssetId ?? undefined,
+                    config,
+                  }])
+                }
               } catch (err) {
                 console.error('Errore upload', err)
               }
               setPendingFile(null)
+              setPendingAssetId(null)
             }}
-            onCancel={() => setPendingFile(null)}
+            onCancel={() => {
+              setPendingFile(null)
+              setPendingAssetId(null)
+            }}
           />
         )}
+
       </div>
     </>
   )

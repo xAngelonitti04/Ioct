@@ -12,7 +12,11 @@ interface ModelConfig {
 
 interface SceneModel {
   url: string
+  glb_filename?: string
+  scene_object_id?: number
+  asset_id?: number
   config: ModelConfig
+  node?: any
 }
 
 interface Scene3DProps {
@@ -20,6 +24,8 @@ interface Scene3DProps {
   onDelete: (index: number) => void
   activeTab: string
   onSelectModel: (index: number | null) => void
+  onUpdatePosition: (index: number, position: [number, number, number], rotation: [number, number, number], scale: [number, number, number]) => void
+  selectedModelIndex: number | null
 }
 
 function Model({ url, config, modelRef, onSelect, interactive, selected }: {
@@ -32,7 +38,10 @@ function Model({ url, config, modelRef, onSelect, interactive, selected }: {
 }) {
   const { scene } = useGLTF(url)
   const rad = (deg: number) => (deg * Math.PI) / 180
-  const boxRef = useRef<THREE.Box3Helper>(null)
+
+  useEffect(() => {
+    return () => { useGLTF.clear(url) }
+  }, [url])
 
   return (
     <group>
@@ -60,14 +69,21 @@ function Model({ url, config, modelRef, onSelect, interactive, selected }: {
   )
 }
 
-export function Scene3D({ models, onDelete, activeTab, onSelectModel }: Scene3DProps) {
+export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePosition, selectedModelIndex }: Scene3DProps) {
   const modelRef = useRef<THREE.Group>(null)
   const [mode, setMode] = useState<'translate' | 'rotate' | 'scale' | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [, forceUpdate] = useState(0)
 
   const isScene = activeTab === 'scene'
-  const isInteractive = activeTab === 'scene' || activeTab === 'nodes'
+  const isInteractive = activeTab === 'scene' || activeTab === 'nodes' || activeTab === 'assets'
+
+  useEffect(() => {
+    if (selectedModelIndex !== selectedIndex) {
+      setSelectedIndex(selectedModelIndex)
+      setTimeout(() => forceUpdate(n => n + 1), 100)
+    }
+  }, [selectedModelIndex])
 
   useEffect(() => {
     if (selectedIndex !== null) {
@@ -77,10 +93,23 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel }: Scene3DP
   }, [selectedIndex])
 
   useEffect(() => {
-    setSelectedIndex(null)
-    setMode(null)
-    onSelectModel(null)
+    if (activeTab !== 'scene') {
+      setMode(null)
+    }
   }, [activeTab])
+
+  const handleTransformEnd = () => {
+    if (!modelRef.current || selectedIndex === null) return
+    const pos = modelRef.current.position
+    const rot = modelRef.current.rotation
+    const scl = modelRef.current.scale
+    onUpdatePosition(
+      selectedIndex,
+      [pos.x, pos.y, pos.z],
+      [rot.x, rot.y, rot.z],
+      [scl.x, scl.y, scl.z]
+    )
+  }
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -124,8 +153,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel }: Scene3DP
             padding: '6px 12px',
             background: '#0f172a',
             border: '0.5px solid rgba(255,255,255,0.15)',
-            borderRadius: 6,
-            fontSize: 12,
+            borderRadius: 6, fontSize: 12,
           }}>
             <span style={{ color: '#f87171' }}>X {modelRef.current.position.x.toFixed(2)}</span>
             <span style={{ color: '#4ade80' }}>Y {modelRef.current.position.y.toFixed(2)}</span>
@@ -146,8 +174,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel }: Scene3DP
               padding: '6px 12px',
               background: 'rgba(239,68,68,0.15)',
               border: '0.5px solid rgba(239,68,68,0.4)',
-              borderRadius: 6,
-              color: '#f87171',
+              borderRadius: 6, color: '#f87171',
               cursor: 'pointer', fontSize: 13,
             }}
           >
@@ -173,7 +200,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel }: Scene3DP
         <Suspense fallback={null}>
           {models.map((m, i) => (
             <Model
-              key={i}
+              key={`${m.url}-${i}`}
               url={m.url}
               config={m.config}
               modelRef={i === selectedIndex ? modelRef : { current: null }}
@@ -181,13 +208,17 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel }: Scene3DP
               selected={i === selectedIndex}
               onSelect={() => {
                 setSelectedIndex(i)
-                if (isScene) setMode('translate')
                 onSelectModel(i)
+                if (isScene) setMode('translate')
               }}
             />
           ))}
           {isScene && selectedIndex !== null && mode && modelRef.current && (
-            <TransformControls object={modelRef.current} mode={mode} />
+            <TransformControls
+              object={modelRef.current}
+              mode={mode}
+              onMouseUp={handleTransformEnd}
+            />
           )}
         </Suspense>
 

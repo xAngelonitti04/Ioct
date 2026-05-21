@@ -20,12 +20,14 @@ interface SidebarProps {
   models: SceneModel[]
   onSelectProject: (project: Project) => void
   onImportProject: (file: File) => void
+  onSelectModel: (index: number) => void
+  onLoadGlb: (file: File, assetId: number) => void
 }
 
-export function Sidebar({ activeTab, selectedModelIndex, selectedModelNode, onAddNode, currentProject, models, onSelectProject, onImportProject }: SidebarProps) {
+export function Sidebar({ activeTab, selectedModelIndex, selectedModelNode, onAddNode, currentProject, models, onSelectProject, onImportProject, onSelectModel, onLoadGlb }: SidebarProps) {
   return (
     <div style={{ height: '100%' }}>
-      {activeTab === 'scene'     && <AssetPanel />}
+      {activeTab === 'scene'     && <AssetPanel currentProject={currentProject} models={models} selectedModelIndex={selectedModelIndex} onSelectModel={onSelectModel} onLoadGlb={onLoadGlb} />}
       {activeTab === 'analytics' && <AnalyticsPanel />}
       {activeTab === 'nodes'     && (
         <NodesPanel
@@ -34,7 +36,15 @@ export function Sidebar({ activeTab, selectedModelIndex, selectedModelNode, onAd
           onAddNode={onAddNode}
         />
       )}
-      {activeTab === 'assets'    && <AssetPanel />}
+      {activeTab === 'assets'    && (
+        <AssetPanel
+          currentProject={currentProject}
+          models={models}
+          selectedModelIndex={selectedModelIndex}
+          onSelectModel={onSelectModel}
+          onLoadGlb={onLoadGlb}
+        />
+      )}
       {activeTab === 'projects'  && (
         <ProjectsPanel
           currentProject={currentProject}

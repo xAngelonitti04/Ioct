@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey, Float
 from database import Base
 
 
@@ -111,12 +111,13 @@ class SceneObject(Base):
     glb_base64 = Column(Text)
     ioct_node_id = Column(Integer, ForeignKey("ioct_node.ioct_node_id"), nullable=True)
     project_id = Column(Integer, ForeignKey("project.project_id"), nullable=True)
-    pos_x = Column(Integer, default=0)
-    pos_y = Column(Integer, default=0)
-    pos_z = Column(Integer, default=0)
-    rot_x = Column(Integer, default=0)
-    rot_y = Column(Integer, default=0)
-    rot_z = Column(Integer, default=0)
-    scale_x = Column(Integer, default=1)
-    scale_y = Column(Integer, default=1)
-    scale_z = Column(Integer, default=1)
+    asset_id = Column(Integer, ForeignKey("asset.asset_id"), nullable=True)
+    pos_x = Column(Float, default=0)
+    pos_y = Column(Float, default=0)
+    pos_z = Column(Float, default=0)
+    rot_x = Column(Float, default=0)
+    rot_y = Column(Float, default=0)
+    rot_z = Column(Float, default=0)
+    scale_x = Column(Float, default=1)
+    scale_y = Column(Float, default=1)
+    scale_z = Column(Float, default=1)

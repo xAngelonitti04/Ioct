@@ -6,13 +6,12 @@ type Tab = 'scene' | 'analytics' | 'nodes' | 'assets' | 'projects'
 interface NavbarProps {
   activeTab: Tab
   onTabChange: (tab: Tab) => void
-  onModelUpload: (file: File) => void
   currentProject: Project | null
   onChangeProject: () => void
   models: SceneModel[]
 }
 
-export function Navbar({ activeTab, onTabChange, onModelUpload, currentProject, onChangeProject, models }: NavbarProps) {
+export function Navbar({ activeTab, onTabChange, currentProject, onChangeProject, models }: NavbarProps) {
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'scene',     label: 'Vista 3D',   icon: 'ti-box-model-2' },
     { id: 'analytics', label: 'Analytics',  icon: 'ti-chart-line'  },
@@ -24,7 +23,6 @@ export function Navbar({ activeTab, onTabChange, onModelUpload, currentProject, 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    onModelUpload(file)
   }
 
   return (
@@ -45,7 +43,7 @@ export function Navbar({ activeTab, onTabChange, onModelUpload, currentProject, 
           <div style={{ width: 28, height: 28, background: '#1d4ed8', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <i className="ti ti-building-castle" style={{ color: 'white', fontSize: 16 }} />
           </div>
-          CulturalTwin
+          Ioct Viewer
         </div>
 
         {/* Progetto corrente */}
@@ -96,20 +94,7 @@ export function Navbar({ activeTab, onTabChange, onModelUpload, currentProject, 
       {/* Right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
 
-        {/* Carica GLB */}
-        <label style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '5px 12px',
-          background: 'rgba(59,130,246,0.15)',
-          border: '0.5px solid rgba(59,130,246,0.3)',
-          borderRadius: 6, color: '#60a5fa',
-          cursor: 'pointer', fontSize: 13,
-        }}>
-          <i className="ti ti-upload" style={{ fontSize: 16 }} />
-          Carica GLB
-          <input type="file" accept=".glb,.gltf" onChange={handleFileUpload} style={{ display: 'none' }} />
-        </label>
-
+      
         {/* Status nodi */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,

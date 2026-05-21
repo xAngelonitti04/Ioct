@@ -72,3 +72,65 @@ def delete_contains(contains_id: int, db: Session = Depends(get_db)):
     db.delete(contains)
     db.commit()
     return {"message": "Relazione CONTAINS eliminata correttamente"}
+
+
+@router.get("/children/{asset_id}")
+def get_children(asset_id: int, db: Session = Depends(get_db)):
+    relations = db.query(db_models.AssetContains).filter(
+        db_models.AssetContains.parent_asset_id == asset_id
+    ).all()
+    result = []
+    for rel in relations:
+        child = db.query(db_models.Asset).filter(
+            db_models.Asset.asset_id == rel.child_asset_id
+        ).first()
+        if child:
+            result.append({
+                "contains_id": rel.asset_contains_id,
+                "asset": {
+                    "asset_id": child.asset_id,
+                    "title": child.title,
+                    "asset_type": child.asset_type,
+                    "location": child.location,
+                    "artist_name": child.artist_name,
+                    "creation_date": child.creation_date,
+                    "conservation_state": child.conservation_state,
+                    "description": child.description,
+                },
+                "position": rel.position,
+                "start_date": str(rel.start_date) if rel.start_date else None,
+                "end_date": str(rel.end_date) if rel.end_date else None,
+                "notes": rel.notes,
+            })
+    return result
+
+
+@router.get("/parents/{asset_id}")
+def get_parents(asset_id: int, db: Session = Depends(get_db)):
+    relations = db.query(db_models.AssetContains).filter(
+        db_models.AssetContains.child_asset_id == asset_id
+    ).all()
+    result = []
+    for rel in relations:
+        parent = db.query(db_models.Asset).filter(
+            db_models.Asset.asset_id == rel.parent_asset_id
+        ).first()
+        if parent:
+            result.append({
+                "contains_id": rel.asset_contains_id,
+                "asset": {
+                    "asset_id": parent.asset_id,
+                    "title": parent.title,
+                    "asset_type": parent.asset_type,
+                    "location": parent.location,
+                    "artist_name": parent.artist_name,
+                    "creation_date": parent.creation_date,
+                    "conservation_state": parent.conservation_state,
+                    "description": parent.description,
+                },
+                "position": rel.position,
+                "start_date": str(rel.start_date) if rel.start_date else None,
+                "end_date": str(rel.end_date) if rel.end_date else None,
+                "notes": rel.notes,
+            })
+    return result

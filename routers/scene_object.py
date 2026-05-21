@@ -1,5 +1,6 @@
 import os
 import shutil
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional
@@ -23,6 +24,7 @@ class SceneObjectCreate(BaseModel):
     glb_filename: Optional[str] = None
     ioct_node_id: Optional[int] = None
     project_id: Optional[int] = None
+    asset_id: Optional[int] = None
     pos_x: Optional[float] = 0
     pos_y: Optional[float] = 0
     pos_z: Optional[float] = 0
@@ -37,6 +39,7 @@ class SceneObjectUpdate(BaseModel):
     glb_filename: Optional[str] = None
     ioct_node_id: Optional[int] = None
     project_id: Optional[int] = None
+    asset_id: Optional[int] = None
     pos_x: Optional[float] = None
     pos_y: Optional[float] = None
     pos_z: Optional[float] = None
@@ -51,11 +54,11 @@ class SceneObjectUpdate(BaseModel):
 async def upload_glb(project_id: int, file: UploadFile = File(...)):
     project_dir = os.path.join(UPLOAD_DIR, str(project_id))
     os.makedirs(project_dir, exist_ok=True)
-    filename = file.filename
-    filepath = os.path.join(project_dir, filename)
+    unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
+    filepath = os.path.join(project_dir, unique_filename)
     with open(filepath, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    return {"filename": filename}
+    return {"filename": unique_filename}
 
 @router.post("/")
 def create_scene_object(data: SceneObjectCreate, db: Session = Depends(get_db)):
