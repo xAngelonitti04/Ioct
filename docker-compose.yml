@@ -20,7 +20,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
     environment:
-      DATABASE_URL: mysql+pymysql://root:root@db:3306/ioct_cultural_db
+      DATABASE_URL: mysql+pymysql://root:root@127.0.0.1:3306/ioct_cultural_db
     depends_on:
       db:
         condition: service_healthy

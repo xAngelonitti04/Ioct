@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import type { Project, SceneModel } from '../../App'
+import { IotIcon } from '../IotIcon'
 
 type Tab = 'scene' | 'analytics' | 'nodes' | 'assets' | 'projects'
 
@@ -12,18 +12,13 @@ interface NavbarProps {
 }
 
 export function Navbar({ activeTab, onTabChange, currentProject, onChangeProject, models }: NavbarProps) {
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'scene',     label: 'Vista 3D',   icon: 'ti-box-model-2' },
-    { id: 'analytics', label: 'Analytics',  icon: 'ti-chart-line'  },
-    { id: 'nodes',     label: 'Nodi IoT',   icon: 'ti-cpu'         },
-    { id: 'assets',    label: 'Asset',      icon: 'ti-building'    },
-    { id: 'projects',  label: 'Progetti',   icon: 'ti-folder'      },
+  const tabs: { id: Tab; label: string; icon?: string; custom?: boolean }[] = [
+    { id: 'scene',     label: 'Vista 3D',  icon: 'ti-box-model-2' },
+    { id: 'analytics', label: 'Analytics', icon: 'ti-chart-line'  },
+    { id: 'nodes',     label: 'Nodi IoT',  custom: true           },
+    { id: 'assets',    label: 'Asset',     icon: 'ti-building'    },
+    { id: 'projects',  label: 'Progetti',  icon: 'ti-folder'      },
   ]
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-  }
 
   return (
     <nav style={{
@@ -46,7 +41,6 @@ export function Navbar({ activeTab, onTabChange, currentProject, onChangeProject
           Ioct Viewer
         </div>
 
-        {/* Progetto corrente */}
         {currentProject && (
           <>
             <div style={{ width: '0.5px', height: 24, background: 'rgba(255,255,255,0.15)' }} />
@@ -70,7 +64,6 @@ export function Navbar({ activeTab, onTabChange, currentProject, onChangeProject
 
         <div style={{ width: '0.5px', height: 24, background: 'rgba(255,255,255,0.15)' }} />
 
-        {/* Tab */}
         <div style={{ display: 'flex', gap: 2 }}>
           {tabs.map(tab => (
             <button
@@ -84,7 +77,11 @@ export function Navbar({ activeTab, onTabChange, currentProject, onChangeProject
                 color: activeTab === tab.id ? '#60a5fa' : '#94a3b8',
               }}
             >
-              <i className={`ti ${tab.icon}`} style={{ fontSize: 16 }} />
+              {tab.custom ? (
+                <IotIcon size={16} color={activeTab === tab.id ? '#60a5fa' : '#94a3b8'} />
+              ) : (
+                <i className={`ti ${tab.icon}`} style={{ fontSize: 16 }} />
+              )}
               {tab.label}
             </button>
           ))}
@@ -93,9 +90,6 @@ export function Navbar({ activeTab, onTabChange, currentProject, onChangeProject
 
       {/* Right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-
-      
-        {/* Status nodi */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '4px 10px',
