@@ -74,6 +74,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
   const [mode, setMode] = useState<'translate' | 'rotate' | 'scale' | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [, forceUpdate] = useState(0)
+  const [editPos, setEditPos] = useState({ x: '0', y: '0', z: '0' })
 
   const isScene = activeTab === 'scene'
   const isInteractive = activeTab === 'scene' || activeTab === 'nodes' || activeTab === 'assets'
@@ -87,19 +88,47 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
 
   useEffect(() => {
     if (selectedIndex !== null) {
-      const timer = setTimeout(() => forceUpdate(n => n + 1), 100)
+      const timer = setTimeout(() => {
+        forceUpdate(n => n + 1)
+        if (modelRef.current) {
+          setEditPos({
+            x: modelRef.current.position.x.toFixed(2),
+            y: modelRef.current.position.y.toFixed(2),
+            z: modelRef.current.position.z.toFixed(2),
+          })
+        }
+      }, 100)
       return () => clearTimeout(timer)
     }
   }, [selectedIndex])
 
   useEffect(() => {
-    if (activeTab !== 'scene') {
-      setMode(null)
-    }
+    if (activeTab !== 'scene') setMode(null)
   }, [activeTab])
 
   const handleTransformEnd = () => {
     if (!modelRef.current || selectedIndex === null) return
+    const pos = modelRef.current.position
+    const rot = modelRef.current.rotation
+    const scl = modelRef.current.scale
+    setEditPos({
+      x: pos.x.toFixed(2),
+      y: pos.y.toFixed(2),
+      z: pos.z.toFixed(2),
+    })
+    onUpdatePosition(
+      selectedIndex,
+      [pos.x, pos.y, pos.z],
+      [rot.x, rot.y, rot.z],
+      [scl.x, scl.y, scl.z]
+    )
+  }
+
+  const handlePosInput = (axis: 'x' | 'y' | 'z', value: string) => {
+    setEditPos(prev => ({ ...prev, [axis]: value }))
+    const num = parseFloat(value)
+    if (isNaN(num) || !modelRef.current || selectedIndex === null) return
+    modelRef.current.position[axis] = num
     const pos = modelRef.current.position
     const rot = modelRef.current.rotation
     const scl = modelRef.current.scale
@@ -109,6 +138,18 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
       [rot.x, rot.y, rot.z],
       [scl.x, scl.y, scl.z]
     )
+    forceUpdate(n => n + 1)
+  }
+
+  const inputStyle = {
+    width: 60,
+    padding: '4px 6px',
+    background: '#0f172a',
+    border: '0.5px solid rgba(255,255,255,0.15)',
+    borderRadius: 4,
+    color: 'white',
+    fontSize: 12,
+    textAlign: 'center' as const,
   }
 
   return (
@@ -120,7 +161,9 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
           top: 12, left: 12,
           zIndex: 10,
           display: 'flex', gap: 8, alignItems: 'center',
+          flexWrap: 'wrap',
         }}>
+          {/* Modalità transform */}
           <div style={{ display: 'flex', gap: 4 }}>
             {([
               { id: 'translate', icon: 'ti-move',             label: 'Sposta' },
@@ -148,20 +191,49 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
 
           <div style={{ width: '0.5px', height: 24, background: 'rgba(255,255,255,0.15)' }} />
 
+          {/* Coordinate editabili */}
           <div style={{
-            display: 'flex', gap: 8,
-            padding: '6px 12px',
+            display: 'flex', gap: 6, alignItems: 'center',
+            padding: '4px 10px',
             background: '#0f172a',
             border: '0.5px solid rgba(255,255,255,0.15)',
-            borderRadius: 6, fontSize: 12,
+            borderRadius: 6,
           }}>
-            <span style={{ color: '#f87171' }}>X {modelRef.current.position.x.toFixed(2)}</span>
-            <span style={{ color: '#4ade80' }}>Y {modelRef.current.position.y.toFixed(2)}</span>
-            <span style={{ color: '#60a5fa' }}>Z {modelRef.current.position.z.toFixed(2)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: '#f87171', fontSize: 11, fontWeight: 600 }}>X</span>
+              <input
+                type="number"
+                step="0.1"
+                value={editPos.x}
+                onChange={e => handlePosInput('x', e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>Y</span>
+              <input
+                type="number"
+                step="0.1"
+                value={editPos.y}
+                onChange={e => handlePosInput('y', e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: '#60a5fa', fontSize: 11, fontWeight: 600 }}>Z</span>
+              <input
+                type="number"
+                step="0.1"
+                value={editPos.z}
+                onChange={e => handlePosInput('z', e.target.value)}
+                style={inputStyle}
+              />
+            </div>
           </div>
 
           <div style={{ width: '0.5px', height: 24, background: 'rgba(255,255,255,0.15)' }} />
 
+          {/* Elimina */}
           <button
             onClick={() => {
               onDelete(selectedIndex!)
