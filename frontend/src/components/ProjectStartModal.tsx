@@ -6,7 +6,7 @@ interface ProjectStartModalProps {
   onImport: (file: File) => void
 }
 
-export function ProjectStartModal({ onSelect, onImport }: ProjectStartModalProps) {
+export function ProjectStartModal({ onSelect }: ProjectStartModalProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
@@ -91,46 +91,21 @@ export function ProjectStartModal({ onSelect, onImport }: ProjectStartModalProps
 
         {!showForm ? (
           <>
-            {/* Azioni */}
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                onClick={() => setShowForm(true)}
-                style={{
-                  flex: 1, padding: '14px',
-                  background: 'rgba(59,130,246,0.15)',
-                  border: '0.5px solid rgba(59,130,246,0.3)',
-                  borderRadius: 10, color: '#60a5fa',
-                  cursor: 'pointer', fontSize: 14,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                }}
-              >
-                <i className="ti ti-plus" style={{ fontSize: 24 }} />
-                Nuovo progetto
-              </button>
-
-              <label style={{
-                flex: 1, padding: '14px',
-                background: 'rgba(16,185,129,0.15)',
-                border: '0.5px solid rgba(16,185,129,0.3)',
-                borderRadius: 10, color: '#34d399',
+            <button
+              onClick={() => setShowForm(true)}
+              style={{
+                padding: '14px',
+                background: 'rgba(59,130,246,0.15)',
+                border: '0.5px solid rgba(59,130,246,0.3)',
+                borderRadius: 10, color: '#60a5fa',
                 cursor: 'pointer', fontSize: 14,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-              }}>
-                <i className="ti ti-upload" style={{ fontSize: 24 }} />
-                Importa progetto
-                <input
-                  type="file"
-                  accept=".json"
-                  style={{ display: 'none' }}
-                  onChange={e => {
-                    const file = e.target.files?.[0]
-                    if (file) onImport(file)
-                  }}
-                />
-              </label>
-            </div>
+              }}
+            >
+              <i className="ti ti-plus" style={{ fontSize: 24 }} />
+              Nuovo progetto
+            </button>
 
-            {/* Progetti esistenti */}
             {projects.length > 0 && (
               <div>
                 <p style={{ color: '#475569', fontSize: 12, marginBottom: 10 }}>OPPURE APRI UN PROGETTO ESISTENTE</p>
