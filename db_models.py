@@ -1,7 +1,15 @@
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey, Float
 from database import Base
 
+class Sensor(Base):
+    __tablename__ = "sensor"
 
+    sensor_id = Column(Integer, primary_key=True, index=True)
+    ioct_node_id = Column(Integer, ForeignKey("ioct_node.ioct_node_id"), nullable=False)
+    name = Column(String(100))
+    sensor_type = Column(String(50))
+    unit = Column(String(20))
+    sensor_key = Column(String(100))
 # =========================
 # ASSET
 # =========================
@@ -51,6 +59,7 @@ class IoctNode(Base):
     installation_date = Column(Date)
     last_communication = Column(DateTime)
     notes = Column(Text)
+    artemis_node_id = Column(String(100), nullable=True)
 
 
 # =========================
@@ -121,3 +130,5 @@ class SceneObject(Base):
     scale_x = Column(Float, default=1)
     scale_y = Column(Float, default=1)
     scale_z = Column(Float, default=1)
+    object_type = Column(String(20), default='asset')
+    artemis_node_id = Column(String(100), nullable=True)

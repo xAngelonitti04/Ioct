@@ -1,8 +1,24 @@
 /// <reference types="@react-three/fiber" />
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid, Line, useGLTF, TransformControls } from '@react-three/drei'
-import { Suspense, useRef, useState, useEffect } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
+import { OrbitControls, Grid, Line, useGLTF, TransformControls, Html } from '@react-three/drei'
+import { Suspense, useRef, useState, useEffect, useCallback } from 'react'
 import * as THREE from 'three'
+
+interface Sensor {
+  sensor_id?: number
+  name: string
+  sensor_type: string
+  unit: string
+  sensor_key: string
+}
+
+interface IoCtNode {
+  ioct_node_id?: number
+  name: string
+  status?: string
+  artemis_node_id?: string
+  sensors?: Sensor[]
+}
 
 interface ModelConfig {
   position: [number, number, number]
@@ -15,8 +31,10 @@ interface SceneModel {
   glb_filename?: string
   scene_object_id?: number
   asset_id?: number
+  object_type?: string
+  artemis_node_id?: string
   config: ModelConfig
-  node?: any
+  node?: IoCtNode
 }
 
 interface Scene3DProps {
@@ -26,15 +44,204 @@ interface Scene3DProps {
   onSelectModel: (index: number | null) => void
   onUpdatePosition: (index: number, position: [number, number, number], rotation: [number, number, number], scale: [number, number, number]) => void
   selectedModelIndex: number | null
+  placementMode: boolean
+  onPlacementClick: (position: [number, number, number]) => void
+  previewPosition: [number, number, number] | null
 }
 
-function Model({ url, config, modelRef, onSelect, interactive, selected }: {
+const ARTEMIS_BASE_URL = 'http://progetti.smarteducationlab.it:10011'
+
+function NodeCard({ node, visible }: { node: IoCtNode, visible: boolean }) {
+  const [sensorData, setSensorData] = useState<Record<string, { value: number, unit: string, timestamp: string }>>({})
+  const [loading, setLoading] = useState(false)
+  const [animating, setAnimating] = useState(false)
+
+  useEffect(() => {
+    if (visible) {
+      setAnimating(true)
+      if (node.artemis_node_id) fetchSensorData()
+    }
+  }, [visible, node.artemis_node_id])
+
+  const fetchSensorData = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/artemis/nodes/${node.artemis_node_id}/data?op=latest&type=all`)
+      const data = await res.json()
+      const mapped: Record<string, { value: number, unit: string, timestamp: string }> = {}
+      data.data?.forEach((d: any) => {
+        mapped[d.sensorId] = {
+          value: d.payload.value,
+          unit: d.payload.unit,
+          timestamp: d.payload.timestamp,
+        }
+      })
+      setSensorData(mapped)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getSensorIcon = (type: string) => {
+    switch (type) {
+      case 'temperature': return '🌡️'
+      case 'humidity': return '💧'
+      case 'co2': return '💨'
+      case 'light': return '💡'
+      case 'voc': return '🧪'
+      case 'pressure': return '📊'
+      default: return '📡'
+    }
+  }
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case 'active': return '#10b981'
+      case 'maintenance': return '#f59e0b'
+      default: return '#475569'
+    }
+  }
+
+  return (
+    <Html
+      position={[0, 2, 0]}
+      center
+      distanceFactor={8}
+      style={{ pointerEvents: 'none' }}
+    >
+      <div style={{
+        background: 'rgba(15, 23, 42, 0.95)',
+        border: '0.5px solid rgba(59,130,246,0.4)',
+        borderRadius: 12,
+        padding: '12px 16px',
+        minWidth: 200,
+        maxWidth: 260,
+        boxShadow: '0 0 20px rgba(59,130,246,0.2)',
+        backdropFilter: 'blur(10px)',
+        transform: visible ? 'scaleY(1)' : 'scaleY(0)',
+        transformOrigin: 'top',
+        transition: 'transform 0.3s ease',
+        opacity: visible ? 1 : 0,
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: getStatusColor(node.status), flexShrink: 0 }} />
+          <span style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>{node.name}</span>
+        </div>
+
+        {node.artemis_node_id && (
+          <div style={{ color: '#facc15', fontSize: 10, marginBottom: 8 }}>
+            ARTEMIS · {node.artemis_node_id}
+          </div>
+        )}
+
+        <div style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.1)', marginBottom: 8 }} />
+
+        {/* Sensori */}
+        {loading ? (
+          <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', padding: '8px 0' }}>
+            Caricamento...
+          </div>
+        ) : node.sensors && node.sensors.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {node.sensors.map((s, i) => {
+              const data = s.sensor_key ? sensorData[s.sensor_key] : null
+              return (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+                    <span>{getSensorIcon(s.sensor_type)}</span>
+                    <span>{s.name}</span>
+                  </div>
+                  <span style={{ color: data ? '#60a5fa' : '#475569', fontSize: 12, fontWeight: 600 }}>
+                    {data ? `${data.value} ${data.unit === 'pct' ? '%' : data.unit}` : '—'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div style={{ color: '#475569', fontSize: 12, textAlign: 'center' }}>
+            Nessun sensore
+          </div>
+        )}
+
+        {/* Timestamp */}
+        {Object.values(sensorData).length > 0 && (
+          <>
+            <div style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.1)', margin: '8px 0' }} />
+            <div style={{ color: '#475569', fontSize: 10, textAlign: 'right' }}>
+              🕐 {new Date(Object.values(sensorData)[0]?.timestamp ?? '').toLocaleString('it-IT')}
+            </div>
+          </>
+        )}
+
+        {/* Refresh button */}
+        {node.artemis_node_id && (
+          <button
+            onClick={fetchSensorData}
+            style={{
+              width: '100%', marginTop: 8, padding: '4px',
+              background: 'rgba(59,130,246,0.15)',
+              border: '0.5px solid rgba(59,130,246,0.3)',
+              borderRadius: 6, color: '#60a5fa',
+              cursor: 'pointer', fontSize: 11,
+              pointerEvents: 'auto',
+            }}
+          >
+            ↻ Aggiorna
+          </button>
+        )}
+      </div>
+    </Html>
+  )
+}
+
+function PlacementHandler({ onPlacementClick }: { onPlacementClick: (pos: [number, number, number]) => void }) {
+  const { camera, gl } = useThree()
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const rect = gl.domElement.getBoundingClientRect()
+      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+      const y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      const raycaster = new THREE.Raycaster()
+      raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+      const target = new THREE.Vector3()
+      raycaster.ray.intersectPlane(plane, target)
+      onPlacementClick([target.x, 0, target.z])
+    }
+    gl.domElement.addEventListener('click', handleClick)
+    return () => gl.domElement.removeEventListener('click', handleClick)
+  }, [camera, gl, onPlacementClick])
+
+  return null
+}
+
+function PreviewSensor({ position }: { position: [number, number, number] }) {
+  const { scene } = useGLTF('/sensor.glb')
+  const clone = scene.clone()
+  return (
+    <primitive
+      object={clone}
+      position={position}
+      scale={[1, 1, 1]}
+    />
+  )
+}
+
+function Model({ url, config, modelRef, onSelect, interactive, selected, node, showCard, isNodesTab }: {
   url: string
   config: ModelConfig
   modelRef: React.RefObject<THREE.Group> | { current: null }
   onSelect: () => void
   interactive: boolean
   selected: boolean
+  node?: IoCtNode
+  showCard: boolean
+  isNodesTab: boolean
 }) {
   const { scene } = useGLTF(url)
   const rad = (deg: number) => (deg * Math.PI) / 180
@@ -61,15 +268,21 @@ function Model({ url, config, modelRef, onSelect, interactive, selected }: {
         <primitive
           object={new THREE.Box3Helper(
             new THREE.Box3().setFromObject((modelRef as React.RefObject<THREE.Group>).current!),
-            new THREE.Color('#60a5fa')
+            new THREE.Color(isNodesTab ? '#10b981' : '#60a5fa')
           )}
         />
+      )}
+      {/* Card IoT */}
+      {node && isNodesTab && (
+        <group position={config?.position ?? [0, 0, 0]}>
+          <NodeCard node={node} visible={showCard} />
+        </group>
       )}
     </group>
   )
 }
 
-export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePosition, selectedModelIndex }: Scene3DProps) {
+export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePosition, selectedModelIndex, placementMode, onPlacementClick, previewPosition }: Scene3DProps) {
   const modelRef = useRef<THREE.Group>(null)
   const [mode, setMode] = useState<'translate' | 'rotate' | 'scale' | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
@@ -77,7 +290,8 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
   const [editPos, setEditPos] = useState({ x: '0', y: '0', z: '0' })
 
   const isScene = activeTab === 'scene'
-  const isInteractive = activeTab === 'scene' || activeTab === 'nodes' || activeTab === 'assets'
+  const isNodesTab = activeTab === 'nodes'
+  const isInteractive = !placementMode && (activeTab === 'scene' || activeTab === 'nodes' || activeTab === 'assets')
 
   useEffect(() => {
     if (selectedModelIndex !== selectedIndex) {
@@ -155,6 +369,26 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
 
+      {placementMode && (
+        <div style={{
+          position: 'absolute',
+          top: 12, left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          padding: '8px 16px',
+          background: 'rgba(234,179,8,0.2)',
+          border: '0.5px solid rgba(234,179,8,0.5)',
+          borderRadius: 8,
+          color: '#facc15',
+          fontSize: 13,
+          display: 'flex', alignItems: 'center', gap: 8,
+          pointerEvents: 'none',
+        }}>
+          <i className="ti ti-map-pin" style={{ fontSize: 16 }} />
+          Clicca sulla scena per posizionare il sensore
+        </div>
+      )}
+
       {isScene && selectedIndex !== null && modelRef.current && (
         <div style={{
           position: 'absolute',
@@ -163,7 +397,6 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
           display: 'flex', gap: 8, alignItems: 'center',
           flexWrap: 'wrap',
         }}>
-          {/* Modalità transform */}
           <div style={{ display: 'flex', gap: 4 }}>
             {([
               { id: 'translate', icon: 'ti-move',             label: 'Sposta' },
@@ -191,7 +424,6 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
 
           <div style={{ width: '0.5px', height: 24, background: 'rgba(255,255,255,0.15)' }} />
 
-          {/* Coordinate editabili */}
           <div style={{
             display: 'flex', gap: 6, alignItems: 'center',
             padding: '4px 10px',
@@ -199,41 +431,24 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
             border: '0.5px solid rgba(255,255,255,0.15)',
             borderRadius: 6,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: '#f87171', fontSize: 11, fontWeight: 600 }}>X</span>
-              <input
-                type="number"
-                step="0.1"
-                value={editPos.x}
-                onChange={e => handlePosInput('x', e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>Y</span>
-              <input
-                type="number"
-                step="0.1"
-                value={editPos.y}
-                onChange={e => handlePosInput('y', e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: '#60a5fa', fontSize: 11, fontWeight: 600 }}>Z</span>
-              <input
-                type="number"
-                step="0.1"
-                value={editPos.z}
-                onChange={e => handlePosInput('z', e.target.value)}
-                style={inputStyle}
-              />
-            </div>
+            {(['x', 'y', 'z'] as const).map(axis => (
+              <div key={axis} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: axis === 'x' ? '#f87171' : axis === 'y' ? '#4ade80' : '#60a5fa', fontSize: 11, fontWeight: 600 }}>
+                  {axis.toUpperCase()}
+                </span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editPos[axis]}
+                  onChange={e => handlePosInput(axis, e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            ))}
           </div>
 
           <div style={{ width: '0.5px', height: 24, background: 'rgba(255,255,255,0.15)' }} />
 
-          {/* Elimina */}
           <button
             onClick={() => {
               onDelete(selectedIndex!)
@@ -257,6 +472,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
       )}
 
       <Canvas
+        style={{ cursor: placementMode ? 'crosshair' : 'default' }}
         camera={{ position: [10, 10, 10], fov: 50 }}
         onPointerMissed={() => {
           if (!isInteractive) return
@@ -269,6 +485,8 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <directionalLight position={[-10, 10, -5]} intensity={0.5} />
 
+        {placementMode && <PlacementHandler onPlacementClick={onPlacementClick} />}
+
         <Suspense fallback={null}>
           {models.map((m, i) => (
             <Model
@@ -278,6 +496,9 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
               modelRef={i === selectedIndex ? modelRef : { current: null }}
               interactive={isInteractive}
               selected={i === selectedIndex}
+              node={m.node}
+              showCard={i === selectedIndex && isNodesTab}
+              isNodesTab={isNodesTab}
               onSelect={() => {
                 setSelectedIndex(i)
                 onSelectModel(i)
@@ -285,6 +506,11 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
               }}
             />
           ))}
+
+          {placementMode && previewPosition && (
+            <PreviewSensor position={previewPosition} />
+          )}
+
           {isScene && selectedIndex !== null && mode && modelRef.current && (
             <TransformControls
               object={modelRef.current}
@@ -311,7 +537,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
           fadeStrength={1}
         />
 
-        <OrbitControls makeDefault />
+        <OrbitControls makeDefault enabled={!placementMode} />
       </Canvas>
     </div>
   )

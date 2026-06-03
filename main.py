@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from routers import asset, project, ioct_node, project_ioct, asset_contains, asset_project, scene_object
+from routers import asset, project, ioct_node, project_ioct, asset_contains, asset_project, scene_object,artemis,sensor
 from database import Base, engine
 import os
 
@@ -31,3 +31,5 @@ app.include_router(project_ioct.router)
 app.include_router(asset_contains.router)
 app.include_router(asset_project.router)
 app.include_router(scene_object.router)
+app.include_router(artemis.router)
+app.include_router(sensor.router)

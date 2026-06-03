@@ -26,30 +26,43 @@ def search_ioct_nodes(db: Session = Depends(get_db)):
 
 @router.get("/{ioct_node_id}")
 def get_ioct_node(ioct_node_id: int, db: Session = Depends(get_db)):
-    item = db.query(db_models.IoctNode).filter(db_models.IoctNode.ioct_node_id == ioct_node_id).first()
+    item = db.query(db_models.IoctNode).filter(
+        db_models.IoctNode.ioct_node_id == ioct_node_id
+    ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Nodo IOCT non trovato")
     return item
 
 @router.put("/{ioct_node_id}")
 def update_ioct_node(ioct_node_id: int, data: schemas.IoctNodeUpdate, db: Session = Depends(get_db)):
-    item = db.query(db_models.IoctNode).filter(db_models.IoctNode.ioct_node_id == ioct_node_id).first()
+    item = db.query(db_models.IoctNode).filter(
+        db_models.IoctNode.ioct_node_id == ioct_node_id
+    ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Nodo IOCT non trovato")
-
     for key, value in data.dict(exclude_unset=True).items():
         setattr(item, key, value)
-
     db.commit()
     db.refresh(item)
     return item
 
 @router.delete("/{ioct_node_id}")
 def delete_ioct_node(ioct_node_id: int, db: Session = Depends(get_db)):
-    item = db.query(db_models.IoctNode).filter(db_models.IoctNode.ioct_node_id == ioct_node_id).first()
+    # Prima elimina i sensori collegati
+    db.query(db_models.Sensor).filter(
+        db_models.Sensor.ioct_node_id == ioct_node_id
+    ).delete()
+
+    # Poi elimina i scene_object collegati
+    db.query(db_models.SceneObject).filter(
+        db_models.SceneObject.ioct_node_id == ioct_node_id
+    ).delete()
+
+    item = db.query(db_models.IoctNode).filter(
+        db_models.IoctNode.ioct_node_id == ioct_node_id
+    ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Nodo IOCT non trovato")
-
     db.delete(item)
     db.commit()
     return {"message": "Nodo IOCT eliminato"}

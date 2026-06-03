@@ -61,6 +61,7 @@ class IoctNodeCreate(BaseModel):
     installation_date: Optional[date] = None
     last_communication: Optional[datetime] = None
     notes: Optional[str] = None
+    artemis_node_id: Optional[str] = None
 
 
 class IoctNodeUpdate(BaseModel):
@@ -73,6 +74,7 @@ class IoctNodeUpdate(BaseModel):
     installation_date: Optional[date] = None
     last_communication: Optional[datetime] = None
     notes: Optional[str] = None
+    artemis_node_id: Optional[str] = None
 
 
 # =========================
@@ -145,6 +147,9 @@ class SceneObjectCreate(BaseModel):
     glb_filename: Optional[str] = None
     ioct_node_id: Optional[int] = None
     project_id: Optional[int] = None
+    asset_id: Optional[int] = None
+    object_type: Optional[str] = 'asset'
+    artemis_node_id: Optional[str] = None
     pos_x: Optional[float] = 0
     pos_y: Optional[float] = 0
     pos_z: Optional[float] = 0
@@ -160,6 +165,9 @@ class SceneObjectUpdate(BaseModel):
     glb_filename: Optional[str] = None
     ioct_node_id: Optional[int] = None
     project_id: Optional[int] = None
+    asset_id: Optional[int] = None
+    object_type: Optional[str] = None
+    artemis_node_id: Optional[str] = None
     pos_x: Optional[float] = None
     pos_y: Optional[float] = None
     pos_z: Optional[float] = None
