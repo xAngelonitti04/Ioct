@@ -2,19 +2,12 @@ import { AssetPanel } from './AssetPanel'
 import { NodesPanel } from './NodesPanel'
 import { AnalyticsPanel } from './AnalyticsPanel'
 import { ProjectsPanel } from './ProjectsPanel'
-import type { Project, SceneModel } from '../../App'
-
-interface IoCtNode {
-  ioct_node_id: number
-  name: string
-  sensor_type?: string
-  status?: string
-}
+import type { Project, SceneModel, IoCtNode } from '../../App'
 
 interface SidebarProps {
   activeTab: string
   selectedModelIndex: number | null
-  selectedModelNode?: any
+  selectedModelNode?: IoCtNode
   onAddNode: (modelIndex: number, node: IoCtNode) => void
   currentProject: Project | null
   models: SceneModel[]
@@ -22,22 +15,58 @@ interface SidebarProps {
   onImportProject: (file: File) => void
   onSelectModel: (index: number) => void
   onLoadGlb: (file: File, assetId: number) => void
-  onPlaceNode: (node: IoCtNode | null, artemisNodeId: string | null, position: [number, number, number]) => void
+  onPlaceNode: (
+    node: IoCtNode | null,
+    artemisNodeId: string | null,
+    position: [number, number, number]
+  ) => void
   onActivatePlacement: (node: IoCtNode | null, artemisNodeId: string | null) => void
   onUpdatePreviewPosition: (position: [number, number, number]) => void
   previewPosition: [number, number, number] | null
   onDeleteNodeFromScene: (ioct_node_id: number) => void
+
+  xrayMode: boolean
+  xrayAssetIndex: number | null
+  onToggleXray: (active: boolean) => void
+  onStartSelectXrayAsset: () => void
+  selectingXrayAsset: boolean
 }
 
 export function Sidebar({
-  activeTab, selectedModelIndex, selectedModelNode, onAddNode,
-  currentProject, models, onSelectProject, onImportProject,
-  onSelectModel, onLoadGlb, onPlaceNode, onActivatePlacement,
-  onUpdatePreviewPosition, previewPosition, onDeleteNodeFromScene
+  activeTab,
+  selectedModelIndex,
+  selectedModelNode,
+  onAddNode,
+  currentProject,
+  models,
+  onSelectProject,
+  onImportProject,
+  onSelectModel,
+  onLoadGlb,
+  onPlaceNode,
+  onActivatePlacement,
+  onUpdatePreviewPosition,
+  previewPosition,
+  onDeleteNodeFromScene,
+  xrayMode,
+  xrayAssetIndex,
+  onToggleXray,
+  onStartSelectXrayAsset,
+  selectingXrayAsset,
 }: SidebarProps) {
   return (
     <div style={{ height: '100%' }}>
-      {activeTab === 'analytics' && <AnalyticsPanel />}
+      {activeTab === 'analytics' && (
+        <AnalyticsPanel
+          models={models}
+          xrayMode={xrayMode}
+          xrayAssetIndex={xrayAssetIndex}
+          onToggleXray={onToggleXray}
+          onStartSelectXrayAsset={onStartSelectXrayAsset}
+          selectingXrayAsset={selectingXrayAsset}
+        />
+      )}
+
       {activeTab === 'nodes' && (
         <NodesPanel
           selectedModelIndex={selectedModelIndex}
@@ -50,6 +79,7 @@ export function Sidebar({
           onDeleteNodeFromScene={onDeleteNodeFromScene}
         />
       )}
+
       {(activeTab === 'assets' || activeTab === 'scene') && (
         <AssetPanel
           currentProject={currentProject}
@@ -59,6 +89,7 @@ export function Sidebar({
           onLoadGlb={onLoadGlb}
         />
       )}
+
       {activeTab === 'projects' && (
         <ProjectsPanel
           currentProject={currentProject}

@@ -8,7 +8,47 @@ ARTEMIS_BASE_URL = "http://progetti.smarteducationlab.it:10011"
 
 router = APIRouter(prefix="/artemis", tags=["ARTEMIS"])
 
+# =====================================================
+# SIMULAZIONE MANUALE
+# =====================================================
+
+USE_MANUAL_VALUES = True
+
+SIMULATED_VALUES = {
+    2: {
+        "temperature": 60,
+        "humidity": 65,
+        "co2": 450,
+    },
+}
+
+# =====================================================
+
+
 def simulate_value(sensor_type: str, node_id: int) -> dict:
+
+    if USE_MANUAL_VALUES:
+        manual_value = SIMULATED_VALUES.get(node_id, {}).get(sensor_type)
+
+        if manual_value is not None:
+            units = {
+                "temperature": "C",
+                "humidity": "pct",
+                "co2": "ppm",
+                "light": "lx",
+                "pressure": "hPa",
+                "voc": "ppb",
+            }
+
+            return {
+                "value": manual_value,
+                "unit": units.get(sensor_type, "")
+            }
+
+    # -------------------------------------------------
+    # Simulazione automatica attuale
+    # -------------------------------------------------
+
     t = time.time()
     seed = node_id * 100 + hash(sensor_type) % 100
 
@@ -43,17 +83,17 @@ def simulate_value(sensor_type: str, node_id: int) -> dict:
         return {"value": round(max(0, base + variation), 1), "unit": "ppb"}
 
     return {"value": 0.0, "unit": ""}
-
-
 @router.get("/nodes")
 async def get_artemis_nodes():
     async with httpx.AsyncClient() as client:
         res = await client.get(f"{ARTEMIS_BASE_URL}/nodes")
         return res.json()
 
+
 @router.get("/nodes/{node_id}/data")
 async def get_node_data(node_id: str, request: Request):
     params = dict(request.query_params)
+
     async with httpx.AsyncClient() as client:
         res = await client.get(
             f"{ARTEMIS_BASE_URL}/nodes/{node_id}/data",
@@ -61,11 +101,13 @@ async def get_node_data(node_id: str, request: Request):
         )
         return res.json()
 
+
 @router.get("/nodes/{node_id}")
 async def get_artemis_node(node_id: str):
     async with httpx.AsyncClient() as client:
         res = await client.get(f"{ARTEMIS_BASE_URL}/nodes/{node_id}")
         return res.json()
+
 
 @router.get("/simulate/{ioct_node_id}/data")
 async def simulate_node_data_endpoint(ioct_node_id: int):
@@ -73,6 +115,7 @@ async def simulate_node_data_endpoint(ioct_node_id: int):
     import db_models
 
     db = SessionLocal()
+
     try:
         sensors = db.query(db_models.Sensor).filter(
             db_models.Sensor.ioct_node_id == ioct_node_id
@@ -84,8 +127,9 @@ async def simulate_node_data_endpoint(ioct_node_id: int):
         for s in sensors:
             if not s.sensor_type:
                 continue
+
             simulated = simulate_value(s.sensor_type, ioct_node_id)
-            # Usiamo sensor_type come chiave per i nodi locali
+
             data.append({
                 "sensorId": s.sensor_type,
                 "nodeId": f"local-{ioct_node_id}",
@@ -100,5 +144,6 @@ async def simulate_node_data_endpoint(ioct_node_id: int):
             })
 
         return {"data": data}
+
     finally:
         db.close()

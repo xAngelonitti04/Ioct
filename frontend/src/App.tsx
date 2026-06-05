@@ -131,6 +131,9 @@ function App() {
   const [previewPosition, setPreviewPosition] = useState<[number, number, number] | null>(null)
   const [pendingPlacementNode, setPendingPlacementNode] = useState<IoCtNode | null>(null)
   const [pendingArtemisNodeId, setPendingArtemisNodeId] = useState<string | null>(null)
+  const [xrayMode, setXrayMode] = useState(false)
+  const [xrayAssetIndex, setXrayAssetIndex] = useState<number | null>(null)
+  const [selectingXrayAsset, setSelectingXrayAsset] = useState(false)
   const isDragging = useRef(false)
 
   const fetchAssets = useAppStore((s: any) => s.fetchAssets)
@@ -145,6 +148,11 @@ function App() {
   const handleTabChange = (tab: Tab) => {
     if (tab !== 'scene') setLastTab(tab)
     setActiveTab(tab)
+    if (tab !== 'analytics') {
+      setXrayMode(false)
+      setXrayAssetIndex(null)
+      setSelectingXrayAsset(false)
+    }
   }
 
   const handleChangeProject = () => {
@@ -152,6 +160,9 @@ function App() {
     setSelectedModelIndex(null)
     setSceneKey(prev => prev + 1)
     setCurrentProject(null)
+    setXrayMode(false)
+    setXrayAssetIndex(null)
+    setSelectingXrayAsset(false)
   }
 
   const handleSelectProject = async (project: Project) => {
@@ -175,6 +186,11 @@ function App() {
     }
     setModels(prev => prev.filter((_, i) => i !== index))
     setSelectedModelIndex(null)
+    if (xrayAssetIndex === index) {
+      setXrayMode(false)
+      setXrayAssetIndex(null)
+      setSelectingXrayAsset(false)
+    }
   }
 
   const handleDeleteNodeFromScene = (ioct_node_id: number) => {
@@ -357,12 +373,21 @@ function App() {
               models={models}
               onDelete={handleDeleteModel}
               activeTab={activeTab}
-              onSelectModel={setSelectedModelIndex}
+              onSelectModel={(index) => {
+                setSelectedModelIndex(index)
+                if (selectingXrayAsset && index !== null && models[index]?.object_type === 'asset') {
+                  setXrayAssetIndex(index)
+                  setSelectingXrayAsset(false)
+                }
+              }}
               onUpdatePosition={handleUpdatePosition}
               selectedModelIndex={selectedModelIndex}
               placementMode={placementMode}
               onPlacementClick={handlePlacementClick}
               previewPosition={previewPosition}
+              xrayMode={xrayMode}
+              xrayAssetIndex={xrayAssetIndex}
+              selectingXrayAsset={selectingXrayAsset}
             />
           </div>
 
@@ -393,13 +418,30 @@ function App() {
               models={models}
               onSelectProject={handleSelectProject}
               onImportProject={handleImportProject}
-              onSelectModel={setSelectedModelIndex}
+              onSelectModel={(index) => {
+                setSelectedModelIndex(index)
+                if (selectingXrayAsset && index !== null && models[index]?.object_type === 'asset') {
+                  setXrayAssetIndex(index)
+                  setSelectingXrayAsset(false)
+                }
+              }}
               onLoadGlb={handleLoadGlb}
               onPlaceNode={handlePlaceNode}
               onActivatePlacement={handleActivatePlacement}
               onUpdatePreviewPosition={handleUpdatePreviewPosition}
               previewPosition={previewPosition}
               onDeleteNodeFromScene={handleDeleteNodeFromScene}
+              xrayMode={xrayMode}
+              xrayAssetIndex={xrayAssetIndex}
+              onToggleXray={(active) => {
+                setXrayMode(active)
+                if (!active) {
+                  setXrayAssetIndex(null)
+                  setSelectingXrayAsset(false)
+                }
+              }}
+              onStartSelectXrayAsset={() => setSelectingXrayAsset(true)}
+              selectingXrayAsset={selectingXrayAsset}
             />
           </div>
 

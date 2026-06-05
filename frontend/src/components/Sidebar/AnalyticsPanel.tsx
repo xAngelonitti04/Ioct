@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import type { SceneModel } from '../../App'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, ScatterChart, Scatter, ZAxis
 } from 'recharts'
-import { Thermometer, Droplets, Wind, Sun, FlaskConical, Gauge, Radio, RefreshCw, ChevronUp, ChevronDown, Search, X } from 'lucide-react'
+import { Thermometer, Droplets, Wind, Sun, FlaskConical, Gauge, Radio, RefreshCw, ChevronUp, ChevronDown, Search, X, MousePointer } from 'lucide-react'
 
 const ARTEMIS_BASE_URL = '/api/artemis'
 
@@ -461,7 +462,17 @@ function NodeAnalytics({ node }: { node: IoCtNode }) {
   )
 }
 
-export function AnalyticsPanel() {
+
+interface AnalyticsPanelProps {
+  models: SceneModel[]
+  xrayMode: boolean
+  xrayAssetIndex: number | null
+  onToggleXray: (active: boolean) => void
+  onStartSelectXrayAsset: () => void
+  selectingXrayAsset: boolean
+}
+
+export function AnalyticsPanel({ models, xrayMode, xrayAssetIndex, onToggleXray, onStartSelectXrayAsset, selectingXrayAsset }: AnalyticsPanelProps) {
   const [nodes, setNodes] = useState<IoCtNode[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -483,6 +494,8 @@ export function AnalyticsPanel() {
     finally { setLoading(false) }
   }
 
+  const xrayAsset = xrayAssetIndex !== null ? models[xrayAssetIndex] : null
+
   const filtered = nodes
     .filter(n => n.sensors && n.sensors.length > 0)
     .filter(n => !search ||
@@ -501,6 +514,75 @@ export function AnalyticsPanel() {
         >
           <RefreshCw size={12} strokeWidth={1.5} />Aggiorna
         </button>
+      </div>
+
+
+      {/* X-Ray */}
+      <div style={{ marginBottom: '1rem', padding: '12px', background: 'rgba(248,113,113,0.05)', border: `0.5px solid ${xrayMode ? 'rgba(248,113,113,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: xrayMode ? 10 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Thermometer size={15} strokeWidth={1.5} color={xrayMode ? '#f87171' : '#475569'} />
+            <span style={{ fontSize: 13, fontWeight: 500, color: xrayMode ? '#f87171' : '#94a3b8' }}>X-Ray Temperatura</span>
+          </div>
+          <div
+            onClick={() => onToggleXray(!xrayMode)}
+            style={{
+              width: 36, height: 20, borderRadius: 10, cursor: 'pointer',
+              background: xrayMode ? '#f87171' : 'rgba(255,255,255,0.1)',
+              position: 'relative', transition: 'background 0.2s',
+              border: `0.5px solid ${xrayMode ? '#f87171' : 'rgba(255,255,255,0.2)'}`,
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 2,
+              left: xrayMode ? 18 : 2,
+              width: 14, height: 14, borderRadius: '50%',
+              background: 'white', transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            }} />
+          </div>
+        </div>
+
+        {xrayMode && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {xrayAsset ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.2)', borderRadius: 6 }}>
+                <div style={{ flex: 1, minWidth: 0,}}>
+                  <div
+  style={{
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }}
+  title={xrayAsset.glb_filename}
+>{xrayAsset.glb_filename?.replace('.glb', '') ?? `Asset #${xrayAssetIndex}`}</div>
+                  <div style={{ color: '#475569', fontSize: 10 }}>Ambiente selezionato</div>
+                </div>
+                <button onClick={onStartSelectXrayAsset} style={{ padding: '3px 8px', background: 'transparent', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 4, color: '#60a5fa', cursor: 'pointer', fontSize: 10 }}>
+                  Cambia
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={onStartSelectXrayAsset}
+                style={{
+                  width: '100%', padding: '8px',
+                  background: selectingXrayAsset ? 'rgba(248,113,113,0.2)' : 'rgba(255,255,255,0.03)',
+                  border: `0.5px solid ${selectingXrayAsset ? 'rgba(248,113,113,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: 6, color: selectingXrayAsset ? '#f87171' : '#64748b',
+                  cursor: 'pointer', fontSize: 12,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}
+              >
+                <MousePointer size={13} strokeWidth={1.5} />
+                {selectingXrayAsset ? 'Clicca un asset nella scena...' : 'Seleziona ambiente nella scena'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Ricerca */}

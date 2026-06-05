@@ -1,9 +1,9 @@
 /// <reference types="@react-three/fiber" />
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Grid, Line, useGLTF, TransformControls, Html } from '@react-three/drei'
-import { Suspense, useRef, useState, useEffect } from 'react'
+import { Suspense, useRef, useState, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { Thermometer, Droplets, Wind, Sun, FlaskConical, Gauge, Radio, RefreshCw, Move, RotateCw, Maximize2, Trash2, MapPin } from 'lucide-react'
+import { Thermometer, Droplets, Wind, Sun, FlaskConical, Gauge, Radio, RefreshCw, Move, RotateCw, Maximize2, Trash2, MapPin, MousePointer } from 'lucide-react'
 
 interface Sensor {
   sensor_id?: number
@@ -48,6 +48,9 @@ interface Scene3DProps {
   placementMode: boolean
   onPlacementClick: (position: [number, number, number]) => void
   previewPosition: [number, number, number] | null
+  xrayMode: boolean
+  xrayAssetIndex: number | null
+  selectingXrayAsset: boolean
 }
 
 function getSensorIcon(type: string) {
@@ -257,7 +260,85 @@ function PreviewSensor({ position }: { position: [number, number, number] }) {
   return <primitive object={clone} position={position} scale={[1, 1, 1]} />
 }
 
-function Model({ url, config, modelRef, onSelect, interactive, selected, node, showCard, isNodesTab }: {
+
+function tempToColor(temp: number, minTemp = 18, maxTemp = 28): THREE.Color {
+  const t = Math.max(0, Math.min(1, (temp - minTemp) / (maxTemp - minTemp)))
+  const color = new THREE.Color()
+  if (t < 0.25) color.setRGB(0, t * 4, 1)
+  else if (t < 0.5) color.setRGB(0, 1, 1 - (t - 0.25) * 4)
+  else if (t < 0.75) color.setRGB((t - 0.5) * 4, 1, 0)
+  else color.setRGB(1, 1 - (t - 0.75) * 4, 0)
+  return color
+}
+
+function XRayOverlay({ models, xrayAssetIndex, sensorTemperatures }: {
+  models: SceneModel[]
+  xrayAssetIndex: number
+  sensorTemperatures: { position: [number, number, number], temperature: number }[]
+}) {
+  const assetModel = models[xrayAssetIndex]
+  const { scene } = useGLTF(assetModel.url)
+console.log('sensorTemperatures in XRayOverlay:', sensorTemperatures)
+  const spheres = useMemo(() => {
+    const clone = scene.clone(true)
+    const rad = (deg: number) => (deg * Math.PI) / 180
+    clone.position.set(...assetModel.config.position)
+    clone.rotation.set(rad(assetModel.config.rotation[0]), rad(assetModel.config.rotation[1]), rad(assetModel.config.rotation[2]))
+    clone.scale.set(...assetModel.config.scale)
+    clone.updateMatrixWorld(true)
+
+    const box = new THREE.Box3().setFromObject(clone)
+    const size = box.getSize(new THREE.Vector3())
+    const maxDim = Math.max(size.x, size.y, size.z)
+    const step = Math.max(0.8, maxDim /15)
+    const result: { position: [number, number, number], color: THREE.Color }[] = []
+
+    for (let x = box.min.x; x <= box.max.x; x += step) {
+      for (let y = box.min.y; y <= box.max.y; y += step) {
+        for (let z = box.min.z; z <= box.max.z; z += step) {
+          let weightedTemp = 0
+          let totalWeight = 0
+          sensorTemperatures.forEach(s => {
+            const dist = Math.sqrt((x - s.position[0]) ** 2 + (y - s.position[1]) ** 2 + (z - s.position[2]) ** 2)
+            const weight = dist < 0.01 ? 1000 : 1 / (dist * dist)
+            weightedTemp += s.temperature * weight
+            totalWeight += weight
+          })
+          const temp = totalWeight > 0 ? weightedTemp / totalWeight : 22
+          result.push({ position: [x, y, z], color: tempToColor(temp) })
+        }
+      }
+    }
+    return result.slice(0, 3000)
+  }, [scene, assetModel, sensorTemperatures])
+
+  return (
+    <>
+      {spheres.map((s, i) => (
+        <mesh key={i} position={s.position}>
+          <sphereGeometry args={[0.09, 8, 8]} />
+          <meshStandardMaterial color={s.color} transparent opacity={1} depthWrite={false} />
+        </mesh>
+      ))}
+    </>
+  )
+}
+
+function TempLegend() {
+  return (
+    <Html position={[8, 3, 0]} style={{ pointerEvents: 'none' }}>
+      <div style={{ background: 'rgba(8,14,28,0.95)', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 10, padding: '12px', width: 82 }}>
+        <div style={{ color: 'white', fontSize: 10, fontWeight: 600, marginBottom: 8, textAlign: 'center' }}>X-Ray °C</div>
+        <div style={{ width: '100%', height: 120, borderRadius: 6, background: 'linear-gradient(to bottom, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff)', marginBottom: 6 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9 }}>
+          <span>18</span><span>28</span>
+        </div>
+      </div>
+    </Html>
+  )
+}
+
+function Model({ url, config, modelRef, onSelect, interactive, selected, node, showCard, isNodesTab, xrayDimmed }: {
   url: string
   config: ModelConfig
   modelRef: React.RefObject<THREE.Group> | { current: null }
@@ -267,17 +348,53 @@ function Model({ url, config, modelRef, onSelect, interactive, selected, node, s
   node?: IoCtNode
   showCard: boolean
   isNodesTab: boolean
+  xrayDimmed?: boolean
 }) {
   const { scene } = useGLTF(url)
   const rad = (deg: number) => (deg * Math.PI) / 180
 
+  const renderedScene = useMemo(() => {
+  const clone = scene.clone(true)
+
+  if (xrayDimmed) {
+    clone.traverse((obj: any) => {
+      if (obj.isMesh && obj.material) {
+        obj.material = Array.isArray(obj.material)
+          ? obj.material.map((m: THREE.Material) => m.clone())
+          : obj.material.clone()
+
+        const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
+
+        materials.forEach((mat: any) => {
+          mat.transparent = true
+          mat.opacity = 0.28
+          mat.depthWrite = false
+          mat.depthTest = true
+          mat.side = THREE.DoubleSide
+          mat.blending = THREE.AdditiveBlending
+
+          if (mat.color) mat.color.set('#9ca3af')
+
+          if (mat.emissive) {
+            mat.emissive.set('#94a3b8')
+            mat.emissiveIntensity = 0.08
+          }
+
+          mat.needsUpdate = true
+        })
+      }
+    })
+  }
+
+  return clone
+}, [scene, xrayDimmed])
   useEffect(() => { return () => { useGLTF.clear(url) } }, [url])
 
   return (
     <group>
       <primitive
         ref={modelRef}
-        object={scene}
+        object={renderedScene}
         position={config?.position ?? [0, 0, 0]}
         rotation={config ? [rad(config.rotation[0]), rad(config.rotation[1]), rad(config.rotation[2])] : [0, 0, 0]}
         scale={config?.scale ?? [1, 1, 1]}
@@ -302,16 +419,71 @@ function Model({ url, config, modelRef, onSelect, interactive, selected, node, s
   )
 }
 
-export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePosition, selectedModelIndex, placementMode, onPlacementClick, previewPosition }: Scene3DProps) {
+export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePosition, selectedModelIndex, placementMode, onPlacementClick, previewPosition, xrayMode, xrayAssetIndex, selectingXrayAsset }: Scene3DProps) {
   const modelRef = useRef<THREE.Group>(null)
   const [mode, setMode] = useState<'translate' | 'rotate' | 'scale' | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [, forceUpdate] = useState(0)
   const [editPos, setEditPos] = useState({ x: '0', y: '0', z: '0' })
-
+  const [latestTemperatures, setLatestTemperatures] = useState<Record<string, number>>({})
   const isScene = activeTab === 'scene'
   const isNodesTab = activeTab === 'nodes' || activeTab === 'analytics'
   const isInteractive = !placementMode && (activeTab === 'scene' || activeTab === 'nodes' || activeTab === 'assets' || activeTab === 'analytics')
+  useEffect(() => {
+  if (!xrayMode) return
+
+  const fetchTemperatures = async () => {
+    const entries: Record<string, number> = {}
+
+    await Promise.all(models.map(async (m) => {
+      if (m.object_type !== 'iot_node' || !m.node) return
+
+      const tempSensor = m.node.sensors?.find(s => s.sensor_type === 'temperature')
+      if (!tempSensor) return
+
+      const key = m.node.artemis_node_id ?? String(m.node.ioct_node_id)
+      if (!key) return
+
+      try {
+        if (m.node.artemis_node_id) {
+          const res = await fetch(
+            `/api/artemis/nodes/${m.node.artemis_node_id}/data?op=latest&type=scalar&sensorId=${tempSensor.sensor_key}`
+          )
+          const data = await res.json()
+          const value = data.data?.[0]?.payload?.value
+
+          if (typeof value === 'number') {
+            entries[key] = value
+          }
+        } else if (m.node.ioct_node_id) {
+          const res = await fetch(`/api/artemis/simulate/${m.node.ioct_node_id}/data`)
+          const data = await res.json()
+
+          const reading = data.data?.find((d: any) =>
+            d.sensorId === tempSensor.sensor_key ||
+            d.sensorId === tempSensor.sensor_type ||
+            d.sensorId === 'temperature'
+          )
+
+          const value = reading?.payload?.value
+
+          if (typeof value === 'number') {
+            entries[key] = value
+          }
+        }
+      } catch (err) {
+        console.error('Errore lettura temperatura X-Ray', err)
+      }
+    }))
+
+    setLatestTemperatures(entries)
+  }
+
+  fetchTemperatures()
+  const interval = setInterval(fetchTemperatures, 30000)
+
+  return () => clearInterval(interval)
+}, [xrayMode, models])
 
   useEffect(() => {
     if (selectedModelIndex !== selectedIndex) {
@@ -382,6 +554,19 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
         </div>
       )}
 
+      {selectingXrayAsset && (
+        <div style={{
+          position: 'absolute', top: placementMode ? 58 : 12, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 10, padding: '8px 16px',
+          background: 'rgba(248,113,113,0.2)', border: '0.5px solid rgba(248,113,113,0.5)',
+          borderRadius: 8, color: '#f87171', fontSize: 13,
+          display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none',
+        }}>
+          <MousePointer size={16} strokeWidth={1.5} />
+          Clicca un asset nella scena per usarlo come ambiente X-Ray
+        </div>
+      )}
+
       {isScene && selectedIndex !== null && modelRef.current && (
         <div style={{
           position: 'absolute', top: 12, left: 12, zIndex: 10,
@@ -429,7 +614,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
       )}
 
       <Canvas
-        style={{ cursor: placementMode ? 'crosshair' : 'default' }}
+        style={{ cursor: placementMode || selectingXrayAsset ? 'crosshair' : 'default' }}
         camera={{ position: [10, 10, 10], fov: 50 }}
         onPointerMissed={() => {
           if (!isInteractive) return
@@ -454,6 +639,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
               node={m.node}
               showCard={i === selectedIndex && isNodesTab}
               isNodesTab={isNodesTab}
+              xrayDimmed={xrayMode && xrayAssetIndex === i && m.object_type === 'asset'}
               onSelect={() => {
                 setSelectedIndex(i)
                 onSelectModel(i)
@@ -461,6 +647,28 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
               }}
             />
           ))}
+
+          {xrayMode && xrayAssetIndex !== null && models[xrayAssetIndex]?.object_type === 'asset' && (
+            <>
+              <XRayOverlay
+  models={models}
+  xrayAssetIndex={xrayAssetIndex}
+  sensorTemperatures={models
+    .filter(m =>
+      m.object_type === 'iot_node' &&
+      m.node?.sensors?.some(s => s.sensor_type === 'temperature')
+    )
+    .map(m => ({
+      position: m.config.position,
+      temperature:
+        latestTemperatures[
+          m.node?.artemis_node_id ?? String(m.node?.ioct_node_id)
+        ] ?? 22,
+    }))}
+/>
+              <TempLegend />
+            </>
+          )}
 
           {placementMode && previewPosition && <PreviewSensor position={previewPosition} />}
 
