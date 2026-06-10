@@ -48,6 +48,27 @@ class ProjectUpdate(BaseModel):
 
 
 # =========================
+# SENSOR
+# =========================
+
+class SensorCreate(BaseModel):
+    ioct_node_id: int
+    name: Optional[str] = None
+    sensor_type: Optional[str] = None
+    unit: Optional[str] = None
+    sensor_key: Optional[str] = None
+    last_communication: Optional[datetime] = None
+
+
+class SensorUpdate(BaseModel):
+    name: Optional[str] = None
+    sensor_type: Optional[str] = None
+    unit: Optional[str] = None
+    sensor_key: Optional[str] = None
+    last_communication: Optional[datetime] = None
+
+
+# =========================
 # IOCT_NODE
 # =========================
 
@@ -59,7 +80,6 @@ class IoctNodeCreate(BaseModel):
     manufacturer: Optional[str] = None
     status: Optional[str] = None
     installation_date: Optional[date] = None
-    last_communication: Optional[datetime] = None
     notes: Optional[str] = None
     artemis_node_id: Optional[str] = None
 
@@ -72,7 +92,6 @@ class IoctNodeUpdate(BaseModel):
     manufacturer: Optional[str] = None
     status: Optional[str] = None
     installation_date: Optional[date] = None
-    last_communication: Optional[datetime] = None
     notes: Optional[str] = None
     artemis_node_id: Optional[str] = None
 

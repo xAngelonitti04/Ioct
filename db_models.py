@@ -10,6 +10,8 @@ class Sensor(Base):
     sensor_type = Column(String(50))
     unit = Column(String(20))
     sensor_key = Column(String(100))
+    last_communication = Column(DateTime, nullable=True)
+
 # =========================
 # ASSET
 # =========================
@@ -57,7 +59,6 @@ class IoctNode(Base):
     manufacturer = Column(String(100))
     status = Column(String(50))
     installation_date = Column(Date)
-    last_communication = Column(DateTime)
     notes = Column(Text)
     artemis_node_id = Column(String(100), nullable=True)
 

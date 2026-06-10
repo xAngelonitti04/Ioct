@@ -1,9 +1,8 @@
 /// <reference types="@react-three/fiber" />
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Grid, Line, useGLTF, TransformControls, Html } from '@react-three/drei'
-import { Suspense, useRef, useState, useEffect, useMemo } from 'react'
+import { Suspense, useRef, useState, useEffect } from 'react'
 import * as THREE from 'three'
-import { Thermometer, Droplets, Wind, Sun, FlaskConical, Gauge, Radio, RefreshCw, Move, RotateCw, Maximize2, Trash2, MapPin, MousePointer } from 'lucide-react'
 
 interface Sensor {
   sensor_id?: number
@@ -11,6 +10,7 @@ interface Sensor {
   sensor_type: string
   unit: string
   sensor_key: string
+  last_communication?: string | null
 }
 
 interface IoCtNode {
@@ -48,22 +48,6 @@ interface Scene3DProps {
   placementMode: boolean
   onPlacementClick: (position: [number, number, number]) => void
   previewPosition: [number, number, number] | null
-  xrayMode: boolean
-  xrayAssetIndex: number | null
-  selectingXrayAsset: boolean
-}
-
-function getSensorIcon(type: string) {
-  const props = { size: 13, strokeWidth: 1.5 }
-  switch (type) {
-    case 'temperature': return <Thermometer {...props} />
-    case 'humidity': return <Droplets {...props} />
-    case 'co2': return <Wind {...props} />
-    case 'light': return <Sun {...props} />
-    case 'voc': return <FlaskConical {...props} />
-    case 'pressure': return <Gauge {...props} />
-    default: return <Radio {...props} />
-  }
 }
 
 function NodeCard({ node, visible, position }: { node: IoCtNode, visible: boolean, position: [number, number, number] }) {
@@ -83,7 +67,11 @@ function NodeCard({ node, visible, position }: { node: IoCtNode, visible: boolea
         const nData = await detailRes.json()
         const mapped: Record<string, { value: number, unit: string, timestamp: string }> = {}
         data.data?.forEach((d: any) => {
-          mapped[d.sensorId] = { value: d.payload.value, unit: d.payload.unit, timestamp: d.payload.timestamp }
+          mapped[d.sensorId] = {
+            value: d.payload.value,
+            unit: d.payload.unit,
+            timestamp: d.payload.timestamp,
+          }
         })
         setSensorData(mapped)
         setNodeDetails(nData)
@@ -92,7 +80,11 @@ function NodeCard({ node, visible, position }: { node: IoCtNode, visible: boolea
         const data = await res.json()
         const mapped: Record<string, { value: number, unit: string, timestamp: string }> = {}
         data.data?.forEach((d: any) => {
-          mapped[d.sensorId] = { value: d.payload.value, unit: d.payload.unit, timestamp: d.payload.timestamp }
+          mapped[d.sensorId] = {
+            value: d.payload.value,
+            unit: d.payload.unit,
+            timestamp: d.payload.timestamp,
+          }
         })
         setSensorData(mapped)
       }
@@ -109,6 +101,30 @@ function NodeCard({ node, visible, position }: { node: IoCtNode, visible: boolea
     const interval = setInterval(fetchSensorData, 30000)
     return () => clearInterval(interval)
   }, [visible, node.artemis_node_id, node.ioct_node_id])
+
+  const getSensorIcon = (type: string) => {
+    switch (type) {
+      case 'temperature': return '🌡️'
+      case 'humidity': return '💧'
+      case 'co2': return '💨'
+      case 'light': return '💡'
+      case 'voc': return '🧪'
+      case 'pressure': return '📊'
+      default: return '📡'
+    }
+  }
+
+  const getSensorColor = (type: string) => {
+    switch (type) {
+      case 'temperature': return '#f87171'
+      case 'humidity': return '#60a5fa'
+      case 'co2': return '#a78bfa'
+      case 'light': return '#fbbf24'
+      case 'voc': return '#34d399'
+      case 'pressure': return '#fb923c'
+      default: return '#94a3b8'
+    }
+  }
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -128,106 +144,108 @@ function NodeCard({ node, visible, position }: { node: IoCtNode, visible: boolea
     >
       <div style={{
         background: 'rgba(8, 14, 28, 0.97)',
-        border: '1px solid rgba(59,130,246,0.4)',
-        borderRadius: 12,
-        padding: '12px 16px',
-        minWidth: 220,
-        boxShadow: '0 0 24px rgba(59,130,246,0.2)',
+        border: '1px solid rgba(59,130,246,0.5)',
+        borderRadius: 14,
+        padding: '14px 18px',
+        minWidth: 240,
+        boxShadow: '0 0 30px rgba(59,130,246,0.25)',
         backdropFilter: 'blur(20px)',
         transform: visible ? 'scale(1)' : 'scale(0)',
         transformOrigin: 'bottom center',
         transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease',
         opacity: visible ? 1 : 0,
-        color: 'white',
       }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingBottom: 8, borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: getStatusColor(node.status), boxShadow: `0 0 6px ${getStatusColor(node.status)}`, flexShrink: 0 }} />
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{node.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, borderBottom: '0.5px solid rgba(255,255,255,0.08)', paddingBottom: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: getStatusColor(node.status), boxShadow: `0 0 8px ${getStatusColor(node.status)}` }} />
+          <span style={{ color: 'white', fontSize: 14, fontWeight: 700 }}>{node.name}</span>
           {!node.artemis_node_id && (
-            <span style={{ color: '#34d399', fontSize: 9, background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: 4, marginLeft: 'auto' }}>SIM</span>
+            <span style={{ color: '#34d399', fontSize: 9, background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: 4 }}>SIM</span>
           )}
         </div>
 
         {node.artemis_node_id && (
-          <div style={{ color: '#facc15', fontSize: 9, marginBottom: 8, opacity: 0.8 }}>
-            {node.artemis_node_id}
+          <div style={{ color: '#facc15', fontSize: 9, marginBottom: 10 }}>
+            ARTEMIS · {node.artemis_node_id}
           </div>
         )}
 
-        {/* Sensori */}
         {loading ? (
-          <div style={{ color: '#475569', fontSize: 11, textAlign: 'center', padding: '6px 0' }}>Caricamento...</div>
+          <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', padding: '8px 0' }}>Caricamento...</div>
         ) : node.sensors && node.sensors.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {node.sensors.map((s, i) => {
               const key = s.sensor_key || s.sensor_type
               const data = sensorData[key]
+              const color = getSensorColor ? getSensorColor(s.sensor_type) : 'white'
+              const lastComm = s.last_communication ?? data?.timestamp ?? null
               return (
                 <div key={i} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '5px 8px',
+                  display: 'flex', flexDirection: 'column',
+                  padding: '6px 10px',
                   background: 'rgba(255,255,255,0.04)',
-                  borderRadius: 6,
-                  border: '0.5px solid rgba(255,255,255,0.07)',
+                  borderRadius: 8,
+                  border: '0.5px solid rgba(255,255,255,0.08)',
+                  gap: 3,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
-                    {getSensorIcon(s.sensor_type)}
-                    <span style={{ fontSize: 11 }}>{s.name}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 14 }}>{getSensorIcon(s.sensor_type)}</span>
+                      <span style={{ color: '#94a3b8', fontSize: 11 }}>{s.name}</span>
+                    </div>
+                    <span style={{ color: data ? color : '#334155', fontSize: 16, fontWeight: 800, fontFamily: 'monospace' }}>
+                      {data ? `${data.value.toFixed(1)}${data.unit === 'pct' ? '%' : data.unit}` : '—'}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: data ? 'white' : '#334155' }}>
-                    {data ? `${data.value.toFixed(1)}${data.unit === 'pct' ? '%' : data.unit}` : '—'}
-                  </span>
+                  {lastComm && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#334155', fontSize: 9 }}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      {new Date(lastComm).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
         ) : (
-          <div style={{ color: '#334155', fontSize: 11, textAlign: 'center' }}>Nessun sensore</div>
+          <div style={{ color: '#334155', fontSize: 12, textAlign: 'center' }}>Nessun sensore</div>
         )}
 
-        {/* Timestamp */}
         {Object.values(sensorData).length > 0 && (
-          <div style={{ color: '#334155', fontSize: 9, textAlign: 'right', marginTop: 6 }}>
-            {new Date(Object.values(sensorData)[0]?.timestamp ?? '').toLocaleString('it-IT')}
+          <div style={{ color: '#334155', fontSize: 9, textAlign: 'right', marginTop: 8 }}>
+            🕐 {new Date(Object.values(sensorData)[0]?.timestamp ?? '').toLocaleString('it-IT')}
           </div>
         )}
 
-        {/* Dettagli ARTEMIS */}
         {nodeDetails && (
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {nodeDetails.operationalFlags?.maintenanceRequired && (
-              <span style={{ color: '#f59e0b', fontSize: 9, background: 'rgba(245,158,11,0.1)', padding: '2px 6px', borderRadius: 4 }}>Manutenzione</span>
+              <span style={{ color: '#f59e0b', fontSize: 9, background: 'rgba(245,158,11,0.1)', padding: '2px 6px', borderRadius: 4 }}>⚠️ Manutenzione</span>
             )}
             {nodeDetails.operationalFlags?.isCalibrated && (
-              <span style={{ color: '#10b981', fontSize: 9, background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: 4 }}>Calibrato</span>
+              <span style={{ color: '#10b981', fontSize: 9, background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: 4 }}>✓ Calibrato</span>
             )}
             {nodeDetails.simulatedNode && (
-              <span style={{ color: '#60a5fa', fontSize: 9, background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: 4 }}>Simulato</span>
+              <span style={{ color: '#60a5fa', fontSize: 9, background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: 4 }}>🔵 Simulato</span>
             )}
             {nodeDetails.location?.position?.room && (
-              <span style={{ color: '#475569', fontSize: 9, background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>
-                {nodeDetails.location.position.room}
-              </span>
+              <span style={{ color: '#475569', fontSize: 9, background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>📍 {nodeDetails.location.position.room}</span>
             )}
           </div>
         )}
 
-        {/* Refresh */}
         <button
           onClick={fetchSensorData}
           style={{
-            width: '100%', marginTop: 8, padding: '4px',
-            background: 'rgba(59,130,246,0.08)',
+            width: '100%', marginTop: 10, padding: '5px',
+            background: 'rgba(59,130,246,0.1)',
             border: '0.5px solid rgba(59,130,246,0.2)',
-            borderRadius: 6, color: '#60a5fa',
+            borderRadius: 6, color: '#3b82f6',
             cursor: 'pointer', fontSize: 10,
             pointerEvents: 'auto',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
           }}
         >
-          <RefreshCw size={10} strokeWidth={1.5} />
-          Aggiorna
+          ↻ Aggiorna dati
         </button>
       </div>
     </Html>
@@ -260,85 +278,7 @@ function PreviewSensor({ position }: { position: [number, number, number] }) {
   return <primitive object={clone} position={position} scale={[1, 1, 1]} />
 }
 
-
-function tempToColor(temp: number, minTemp = 18, maxTemp = 28): THREE.Color {
-  const t = Math.max(0, Math.min(1, (temp - minTemp) / (maxTemp - minTemp)))
-  const color = new THREE.Color()
-  if (t < 0.25) color.setRGB(0, t * 4, 1)
-  else if (t < 0.5) color.setRGB(0, 1, 1 - (t - 0.25) * 4)
-  else if (t < 0.75) color.setRGB((t - 0.5) * 4, 1, 0)
-  else color.setRGB(1, 1 - (t - 0.75) * 4, 0)
-  return color
-}
-
-function XRayOverlay({ models, xrayAssetIndex, sensorTemperatures }: {
-  models: SceneModel[]
-  xrayAssetIndex: number
-  sensorTemperatures: { position: [number, number, number], temperature: number }[]
-}) {
-  const assetModel = models[xrayAssetIndex]
-  const { scene } = useGLTF(assetModel.url)
-console.log('sensorTemperatures in XRayOverlay:', sensorTemperatures)
-  const spheres = useMemo(() => {
-    const clone = scene.clone(true)
-    const rad = (deg: number) => (deg * Math.PI) / 180
-    clone.position.set(...assetModel.config.position)
-    clone.rotation.set(rad(assetModel.config.rotation[0]), rad(assetModel.config.rotation[1]), rad(assetModel.config.rotation[2]))
-    clone.scale.set(...assetModel.config.scale)
-    clone.updateMatrixWorld(true)
-
-    const box = new THREE.Box3().setFromObject(clone)
-    const size = box.getSize(new THREE.Vector3())
-    const maxDim = Math.max(size.x, size.y, size.z)
-    const step = Math.max(0.8, maxDim /15)
-    const result: { position: [number, number, number], color: THREE.Color }[] = []
-
-    for (let x = box.min.x; x <= box.max.x; x += step) {
-      for (let y = box.min.y; y <= box.max.y; y += step) {
-        for (let z = box.min.z; z <= box.max.z; z += step) {
-          let weightedTemp = 0
-          let totalWeight = 0
-          sensorTemperatures.forEach(s => {
-            const dist = Math.sqrt((x - s.position[0]) ** 2 + (y - s.position[1]) ** 2 + (z - s.position[2]) ** 2)
-            const weight = dist < 0.01 ? 1000 : 1 / (dist * dist)
-            weightedTemp += s.temperature * weight
-            totalWeight += weight
-          })
-          const temp = totalWeight > 0 ? weightedTemp / totalWeight : 22
-          result.push({ position: [x, y, z], color: tempToColor(temp) })
-        }
-      }
-    }
-    return result.slice(0, 3000)
-  }, [scene, assetModel, sensorTemperatures])
-
-  return (
-    <>
-      {spheres.map((s, i) => (
-        <mesh key={i} position={s.position}>
-          <sphereGeometry args={[0.09, 8, 8]} />
-          <meshStandardMaterial color={s.color} transparent opacity={1} depthWrite={false} />
-        </mesh>
-      ))}
-    </>
-  )
-}
-
-function TempLegend() {
-  return (
-    <Html position={[8, 3, 0]} style={{ pointerEvents: 'none' }}>
-      <div style={{ background: 'rgba(8,14,28,0.95)', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 10, padding: '12px', width: 82 }}>
-        <div style={{ color: 'white', fontSize: 10, fontWeight: 600, marginBottom: 8, textAlign: 'center' }}>X-Ray °C</div>
-        <div style={{ width: '100%', height: 120, borderRadius: 6, background: 'linear-gradient(to bottom, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff)', marginBottom: 6 }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9 }}>
-          <span>18</span><span>28</span>
-        </div>
-      </div>
-    </Html>
-  )
-}
-
-function Model({ url, config, modelRef, onSelect, interactive, selected, node, showCard, isNodesTab, xrayDimmed }: {
+function Model({ url, config, modelRef, onSelect, interactive, selected, node, showCard, isNodesTab }: {
   url: string
   config: ModelConfig
   modelRef: React.RefObject<THREE.Group> | { current: null }
@@ -348,53 +288,19 @@ function Model({ url, config, modelRef, onSelect, interactive, selected, node, s
   node?: IoCtNode
   showCard: boolean
   isNodesTab: boolean
-  xrayDimmed?: boolean
 }) {
   const { scene } = useGLTF(url)
   const rad = (deg: number) => (deg * Math.PI) / 180
 
-  const renderedScene = useMemo(() => {
-  const clone = scene.clone(true)
-
-  if (xrayDimmed) {
-    clone.traverse((obj: any) => {
-      if (obj.isMesh && obj.material) {
-        obj.material = Array.isArray(obj.material)
-          ? obj.material.map((m: THREE.Material) => m.clone())
-          : obj.material.clone()
-
-        const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
-
-        materials.forEach((mat: any) => {
-          mat.transparent = true
-          mat.opacity = 0.28
-          mat.depthWrite = false
-          mat.depthTest = true
-          mat.side = THREE.DoubleSide
-          mat.blending = THREE.AdditiveBlending
-
-          if (mat.color) mat.color.set('#9ca3af')
-
-          if (mat.emissive) {
-            mat.emissive.set('#94a3b8')
-            mat.emissiveIntensity = 0.08
-          }
-
-          mat.needsUpdate = true
-        })
-      }
-    })
-  }
-
-  return clone
-}, [scene, xrayDimmed])
-  useEffect(() => { return () => { useGLTF.clear(url) } }, [url])
+  useEffect(() => {
+    return () => { useGLTF.clear(url) }
+  }, [url])
 
   return (
     <group>
       <primitive
         ref={modelRef}
-        object={renderedScene}
+        object={scene}
         position={config?.position ?? [0, 0, 0]}
         rotation={config ? [rad(config.rotation[0]), rad(config.rotation[1]), rad(config.rotation[2])] : [0, 0, 0]}
         scale={config?.scale ?? [1, 1, 1]}
@@ -413,77 +319,26 @@ function Model({ url, config, modelRef, onSelect, interactive, selected, node, s
         />
       )}
       {node && isNodesTab && (
-        <NodeCard node={node} visible={showCard} position={config?.position ?? [0, 0, 0]} />
+        <NodeCard
+          node={node}
+          visible={showCard}
+          position={config?.position ?? [0, 0, 0]}
+        />
       )}
     </group>
   )
 }
 
-export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePosition, selectedModelIndex, placementMode, onPlacementClick, previewPosition, xrayMode, xrayAssetIndex, selectingXrayAsset }: Scene3DProps) {
+export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePosition, selectedModelIndex, placementMode, onPlacementClick, previewPosition }: Scene3DProps) {
   const modelRef = useRef<THREE.Group>(null)
   const [mode, setMode] = useState<'translate' | 'rotate' | 'scale' | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [, forceUpdate] = useState(0)
   const [editPos, setEditPos] = useState({ x: '0', y: '0', z: '0' })
-  const [latestTemperatures, setLatestTemperatures] = useState<Record<string, number>>({})
+
   const isScene = activeTab === 'scene'
   const isNodesTab = activeTab === 'nodes' || activeTab === 'analytics'
   const isInteractive = !placementMode && (activeTab === 'scene' || activeTab === 'nodes' || activeTab === 'assets' || activeTab === 'analytics')
-  useEffect(() => {
-  if (!xrayMode) return
-
-  const fetchTemperatures = async () => {
-    const entries: Record<string, number> = {}
-
-    await Promise.all(models.map(async (m) => {
-      if (m.object_type !== 'iot_node' || !m.node) return
-
-      const tempSensor = m.node.sensors?.find(s => s.sensor_type === 'temperature')
-      if (!tempSensor) return
-
-      const key = m.node.artemis_node_id ?? String(m.node.ioct_node_id)
-      if (!key) return
-
-      try {
-        if (m.node.artemis_node_id) {
-          const res = await fetch(
-            `/api/artemis/nodes/${m.node.artemis_node_id}/data?op=latest&type=scalar&sensorId=${tempSensor.sensor_key}`
-          )
-          const data = await res.json()
-          const value = data.data?.[0]?.payload?.value
-
-          if (typeof value === 'number') {
-            entries[key] = value
-          }
-        } else if (m.node.ioct_node_id) {
-          const res = await fetch(`/api/artemis/simulate/${m.node.ioct_node_id}/data`)
-          const data = await res.json()
-
-          const reading = data.data?.find((d: any) =>
-            d.sensorId === tempSensor.sensor_key ||
-            d.sensorId === tempSensor.sensor_type ||
-            d.sensorId === 'temperature'
-          )
-
-          const value = reading?.payload?.value
-
-          if (typeof value === 'number') {
-            entries[key] = value
-          }
-        }
-      } catch (err) {
-        console.error('Errore lettura temperatura X-Ray', err)
-      }
-    }))
-
-    setLatestTemperatures(entries)
-  }
-
-  fetchTemperatures()
-  const interval = setInterval(fetchTemperatures, 30000)
-
-  return () => clearInterval(interval)
-}, [xrayMode, models])
 
   useEffect(() => {
     if (selectedModelIndex !== selectedIndex) {
@@ -508,7 +363,9 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
     }
   }, [selectedIndex])
 
-  useEffect(() => { if (activeTab !== 'scene') setMode(null) }, [activeTab])
+  useEffect(() => {
+    if (activeTab !== 'scene') setMode(null)
+  }, [activeTab])
 
   const handleTransformEnd = () => {
     if (!modelRef.current || selectedIndex === null) return
@@ -535,7 +392,6 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
     width: 60, padding: '4px 6px',
     background: '#0f172a', border: '0.5px solid rgba(255,255,255,0.15)',
     borderRadius: 4, color: 'white', fontSize: 12, textAlign: 'center' as const,
-    fontFamily: 'JetBrains Mono, monospace',
   }
 
   return (
@@ -549,21 +405,8 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
           borderRadius: 8, color: '#facc15', fontSize: 13,
           display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none',
         }}>
-          <MapPin size={16} strokeWidth={1.5} />
+          <i className="ti ti-map-pin" style={{ fontSize: 16 }} />
           Clicca sulla scena per posizionare il sensore
-        </div>
-      )}
-
-      {selectingXrayAsset && (
-        <div style={{
-          position: 'absolute', top: placementMode ? 58 : 12, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 10, padding: '8px 16px',
-          background: 'rgba(248,113,113,0.2)', border: '0.5px solid rgba(248,113,113,0.5)',
-          borderRadius: 8, color: '#f87171', fontSize: 13,
-          display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none',
-        }}>
-          <MousePointer size={16} strokeWidth={1.5} />
-          Clicca un asset nella scena per usarlo come ambiente X-Ray
         </div>
       )}
 
@@ -574,9 +417,9 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
         }}>
           <div style={{ display: 'flex', gap: 4 }}>
             {([
-              { id: 'translate', icon: <Move size={14} strokeWidth={1.5} />, label: 'Sposta' },
-              { id: 'rotate', icon: <RotateCw size={14} strokeWidth={1.5} />, label: 'Ruota' },
-              { id: 'scale', icon: <Maximize2 size={14} strokeWidth={1.5} />, label: 'Scala' },
+              { id: 'translate', icon: 'ti-move', label: 'Sposta' },
+              { id: 'rotate', icon: 'ti-rotate-clockwise', label: 'Ruota' },
+              { id: 'scale', icon: 'ti-arrows-maximize', label: 'Scala' },
             ] as const).map(m => (
               <button key={m.id} onClick={() => setMode(prev => prev === m.id ? null : m.id)} style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
@@ -584,7 +427,7 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
                 border: `0.5px solid ${mode === m.id ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.15)'}`,
                 borderRadius: 6, color: mode === m.id ? '#60a5fa' : '#94a3b8', cursor: 'pointer', fontSize: 13,
               }}>
-                {m.icon}{m.label}
+                <i className={`ti ${m.icon}`} style={{ fontSize: 16 }} />{m.label}
               </button>
             ))}
           </div>
@@ -608,13 +451,13 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
             onClick={() => { onDelete(selectedIndex!); setSelectedIndex(null); setMode(null); onSelectModel(null) }}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'rgba(239,68,68,0.15)', border: '0.5px solid rgba(239,68,68,0.4)', borderRadius: 6, color: '#f87171', cursor: 'pointer', fontSize: 13 }}
           >
-            <Trash2 size={14} strokeWidth={1.5} />Elimina
+            <i className="ti ti-trash" style={{ fontSize: 16 }} />Elimina
           </button>
         </div>
       )}
 
       <Canvas
-        style={{ cursor: placementMode || selectingXrayAsset ? 'crosshair' : 'default' }}
+        style={{ cursor: placementMode ? 'crosshair' : 'default' }}
         camera={{ position: [10, 10, 10], fov: 50 }}
         onPointerMissed={() => {
           if (!isInteractive) return
@@ -639,7 +482,6 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
               node={m.node}
               showCard={i === selectedIndex && isNodesTab}
               isNodesTab={isNodesTab}
-              xrayDimmed={xrayMode && xrayAssetIndex === i && m.object_type === 'asset'}
               onSelect={() => {
                 setSelectedIndex(i)
                 onSelectModel(i)
@@ -648,29 +490,9 @@ export function Scene3D({ models, onDelete, activeTab, onSelectModel, onUpdatePo
             />
           ))}
 
-          {xrayMode && xrayAssetIndex !== null && models[xrayAssetIndex]?.object_type === 'asset' && (
-            <>
-              <XRayOverlay
-  models={models}
-  xrayAssetIndex={xrayAssetIndex}
-  sensorTemperatures={models
-    .filter(m =>
-      m.object_type === 'iot_node' &&
-      m.node?.sensors?.some(s => s.sensor_type === 'temperature')
-    )
-    .map(m => ({
-      position: m.config.position,
-      temperature:
-        latestTemperatures[
-          m.node?.artemis_node_id ?? String(m.node?.ioct_node_id)
-        ] ?? 22,
-    }))}
-/>
-              <TempLegend />
-            </>
+          {placementMode && previewPosition && (
+            <PreviewSensor position={previewPosition} />
           )}
-
-          {placementMode && previewPosition && <PreviewSensor position={previewPosition} />}
 
           {isScene && selectedIndex !== null && mode && modelRef.current && (
             <TransformControls object={modelRef.current} mode={mode} onMouseUp={handleTransformEnd} />

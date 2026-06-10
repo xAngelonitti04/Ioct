@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Thermometer, Droplets, Wind, Sun, FlaskConical, Gauge, Radio, Search, Plus, X, MapPin, Edit, Trash2, ChevronUp, ChevronDown, Check, Satellite } from 'lucide-react'
+import { Thermometer, Droplets, Wind, Sun, FlaskConical, Gauge, Radio, Search, Plus, X, MapPin, Edit, Trash2, ChevronUp, ChevronDown, Check, Satellite, Clock } from 'lucide-react'
 
 const ARTEMIS_BASE_URL = '/api/artemis'
 
@@ -10,6 +10,7 @@ interface Sensor {
   sensor_type: string
   unit: string
   sensor_key: string
+  last_communication?: string | null
 }
 
 interface IoCtNode {
@@ -61,6 +62,13 @@ function getSensorIcon(type: string, size = 13) {
     case 'pressure': return <Gauge {...props} />
     default: return <Radio {...props} />
   }
+}
+
+function formatLastComm(ts?: string | null): string {
+  if (!ts) return '—'
+  try {
+    return new Date(ts).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch { return '—' }
 }
 
 export function NodesPanel({
@@ -178,6 +186,7 @@ export function NodesPanel({
   const removeFormSensor = (i: number) => setFormSensors(prev => prev.filter((_, idx) => idx !== i))
 
   const sensorUnits: Record<string, string> = { temperature: '°C', humidity: '%', co2: 'ppm', light: 'lx', voc: 'ppb', pressure: 'hPa', other: '' }
+  const sensorTypes = ['temperature', 'humidity', 'co2', 'light', 'voc', 'pressure', 'other']
 
   const handleSave = async () => {
     if (!form.name) { setError('Il nome è obbligatorio'); return }
@@ -246,32 +255,21 @@ export function NodesPanel({
     borderRadius: 6, color: 'white', fontSize: 13,
   }
 
-  const sensorTypes = ['temperature', 'humidity', 'co2', 'light', 'voc', 'pressure', 'other']
-
   return (
     <div style={{ padding: '1rem', color: 'white' }}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h2 style={{ fontSize: 16, fontWeight: 500 }}>Nodi IoT</h2>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            onClick={() => { setShowArtemisSearch(!showArtemisSearch); if (!showArtemisSearch) fetchArtemisNodes() }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'rgba(234,179,8,0.15)', border: '0.5px solid rgba(234,179,8,0.3)', borderRadius: 6, color: '#facc15', cursor: 'pointer', fontSize: 12 }}
-          >
-            <Satellite size={13} strokeWidth={1.5} />
-            {showArtemisSearch ? 'Chiudi' : 'Cerca ARTEMIS'}
+          <button onClick={() => { setShowArtemisSearch(!showArtemisSearch); if (!showArtemisSearch) fetchArtemisNodes() }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'rgba(234,179,8,0.15)', border: '0.5px solid rgba(234,179,8,0.3)', borderRadius: 6, color: '#facc15', cursor: 'pointer', fontSize: 12 }}>
+            <Satellite size={13} strokeWidth={1.5} />{showArtemisSearch ? 'Chiudi' : 'Cerca ARTEMIS'}
           </button>
-          <button
-            onClick={() => showForm ? resetForm() : setShowForm(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'rgba(16,185,129,0.15)', border: '0.5px solid rgba(16,185,129,0.3)', borderRadius: 6, color: '#34d399', cursor: 'pointer', fontSize: 12 }}
-          >
+          <button onClick={() => showForm ? resetForm() : setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'rgba(16,185,129,0.15)', border: '0.5px solid rgba(16,185,129,0.3)', borderRadius: 6, color: '#34d399', cursor: 'pointer', fontSize: 12 }}>
             {showForm ? <X size={13} strokeWidth={1.5} /> : <Plus size={13} strokeWidth={1.5} />}
             {showForm ? 'Annulla' : 'Nuovo'}
           </button>
         </div>
       </div>
 
-      {/* Cerca ARTEMIS */}
       {showArtemisSearch && (
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(234,179,8,0.2)', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
           <p style={{ color: '#facc15', fontSize: 12, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -325,7 +323,6 @@ export function NodesPanel({
         </div>
       )}
 
-      {/* Placement */}
       {isPlacing && (
         <div style={{ padding: '10px 14px', background: 'rgba(234,179,8,0.15)', border: '0.5px solid rgba(234,179,8,0.4)', borderRadius: 8, marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#facc15', fontSize: 13 }}>
@@ -352,7 +349,6 @@ export function NodesPanel({
         </div>
       )}
 
-      {/* Form */}
       {showForm && (
         <div style={{ background: 'rgba(255,255,255,0.03)', border: `0.5px solid ${editingNode ? 'rgba(234,179,8,0.3)' : 'rgba(16,185,129,0.2)'}`, borderRadius: 8, padding: '1rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ color: editingNode ? '#facc15' : '#34d399', fontSize: 12, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -384,8 +380,6 @@ export function NodesPanel({
             <label style={{ color: '#94a3b8', fontSize: 11, display: 'block', marginBottom: 4 }}>Data installazione</label>
             <input type="date" value={form.installation_date} onChange={e => setForm(prev => ({ ...prev, installation_date: e.target.value }))} style={inputStyle} />
           </div>
-
-          {/* Sensori */}
           <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <label style={{ color: '#94a3b8', fontSize: 11 }}>Sensori</label>
@@ -421,7 +415,6 @@ export function NodesPanel({
               </div>
             )}
           </div>
-
           {error && <div style={{ color: '#f87171', fontSize: 12, padding: '6px 10px', background: 'rgba(239,68,68,0.1)', borderRadius: 6 }}>{error}</div>}
           <button onClick={handleSave} disabled={loading} style={{ padding: '8px', background: editingNode ? 'rgba(234,179,8,0.2)' : 'rgba(16,185,129,0.2)', border: `0.5px solid ${editingNode ? 'rgba(234,179,8,0.4)' : 'rgba(16,185,129,0.4)'}`, borderRadius: 6, color: editingNode ? '#facc15' : '#34d399', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13 }}>
             {loading ? 'Salvataggio...' : editingNode ? 'Salva modifiche' : 'Crea nodo'}
@@ -429,7 +422,6 @@ export function NodesPanel({
         </div>
       )}
 
-      {/* Lista nodi */}
       {nodes.length === 0 ? (
         <div style={{ padding: '1.5rem 1rem', background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#475569', fontSize: 13, textAlign: 'center' }}>
           <Radio size={28} strokeWidth={1} style={{ display: 'block', margin: '0 auto 8px', color: '#334155' }} />
@@ -450,6 +442,7 @@ export function NodesPanel({
                       <div style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>
                         {n.serial_number}
                         {n.artemis_node_id && <span style={{ color: '#facc15', marginLeft: 4 }}>· ARTEMIS</span>}
+                        {!n.artemis_node_id && <span style={{ color: '#34d399', marginLeft: 4 }}>· SIM</span>}
                         {n.sensors && n.sensors.length > 0 && <span style={{ color: '#475569', marginLeft: 4 }}>· {n.sensors.length} sensori</span>}
                       </div>
                     </div>
@@ -462,18 +455,30 @@ export function NodesPanel({
                     {n.manufacturer && <div style={{ fontSize: 12, color: '#94a3b8' }}><span style={{ color: '#475569' }}>Produttore: </span>{n.manufacturer}</div>}
                     {n.model && <div style={{ fontSize: 12, color: '#94a3b8' }}><span style={{ color: '#475569' }}>Modello: </span>{n.model}</div>}
                     {n.artemis_node_id && <div style={{ fontSize: 12, color: '#facc15' }}><span style={{ color: '#475569' }}>ID ARTEMIS: </span>{n.artemis_node_id}</div>}
+
                     {n.sensors && n.sensors.length > 0 && (
                       <div>
-                        <div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>SENSORI</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <div style={{ fontSize: 11, color: '#475569', marginBottom: 6 }}>SENSORI</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {n.sensors.map(s => (
-                            <span key={s.sensor_id} style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {getSensorIcon(s.sensor_type)} {s.name || s.sensor_type} {s.unit && `(${s.unit})`}
-                            </span>
+                            <div key={s.sensor_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 6 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ color: '#94a3b8' }}>{getSensorIcon(s.sensor_type)}</span>
+                                <span style={{ color: 'white', fontSize: 12 }}>{s.name || s.sensor_type}</span>
+                                {s.unit && <span style={{ color: '#475569', fontSize: 11 }}>({s.unit})</span>}
+                              </div>
+                              {s.last_communication && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#334155', fontSize: 10 }}>
+                                  <Clock size={9} strokeWidth={1.5} />
+                                  {formatLastComm(s.last_communication)}
+                                </div>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
                     )}
+
                     <button onClick={() => handleActivatePlacementLocal(n)} style={{ width: '100%', padding: '8px', background: isPlacingThis ? 'rgba(234,179,8,0.2)' : 'rgba(59,130,246,0.15)', border: `0.5px solid ${isPlacingThis ? 'rgba(234,179,8,0.4)' : 'rgba(59,130,246,0.3)'}`, borderRadius: 6, color: isPlacingThis ? '#facc15' : '#60a5fa', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       <MapPin size={13} strokeWidth={1.5} />
                       {isPlacingThis ? 'In posizionamento...' : 'Posiziona nella scena'}
