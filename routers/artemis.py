@@ -16,7 +16,7 @@ USE_MANUAL_VALUES = True
 
 SIMULATED_VALUES = {
     2: {
-        "temperature": 60,
+        "temperature": 18,
         "humidity": 65,
         "co2": 450,
     },
